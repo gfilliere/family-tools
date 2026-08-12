@@ -1,0 +1,11 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# pnpm 10 blocks postinstall scripts by default. Wrangler's runtime needs them.
+onlyBuiltDependencies:
+  - workerd
+  - esbuild
+  - "@cloudflare/workerd-linux-64"
+  - "@cloudflare/workerd-darwin-arm64"
+  - "@cloudflare/workerd-darwin-64"

@@ -1,0 +1,20 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "shell",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-08-08",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+
+  // Catch-all. More specific routes like /gas/* win over this one, so the
+  // shell only ever handles paths no other app has claimed.
+  "routes": [{ "pattern": "home.thekleefillieres.com/*", "zone_name": "thekleefillieres.com" }],
+
+  "assets": {
+    "directory": "./dist/client",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+
+  "observability": { "enabled": true }
+}

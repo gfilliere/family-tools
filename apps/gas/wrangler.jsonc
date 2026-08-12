@@ -1,0 +1,44 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "gas",
+	"main": "src/worker/index.ts",
+	"compatibility_date": "2026-08-08",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	// Without this, gas.<subdomain>.workers.dev would serve the app OUTSIDE
+	// Cloudflare Access. Leave it false.
+	"workers_dev": false,
+	"routes": [
+		{
+			"pattern": "home.thekleefillieres.com/gas/*",
+			"zone_name": "thekleefillieres.com"
+		}
+	],
+	"assets": {
+		"directory": "./dist/client",
+		"binding": "ASSETS",
+		"not_found_handling": "none"
+	},
+	"d1_databases": [
+		{
+			"binding": "gas",
+			"database_name": "gas",
+			"database_id": "bd68e25a-7dfb-430b-b843-7d25f06b8663"
+		}
+	],
+	// Tankerkoenig asks for no more than one call per 5 minutes and to avoid
+	// round times. :17 past the hour is polite and well within the limit.
+	"triggers": {
+		"crons": [
+			"17 * * * *"
+		]
+	},
+	"vars": {
+		"THRESHOLD_EUR": "1.699",
+		"NTFY_TOPIC": ""
+	},
+	"observability": {
+		"enabled": true
+	}
+}

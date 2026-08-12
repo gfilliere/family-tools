@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    // TypeScript 7 defaults to strict + esnext, so this file is mostly about JSX
+    // and module resolution. Deprecations from 6.x are hard errors now.
+    "target": "esnext",
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "lib": ["esnext", "dom", "dom.iterable"],
+    "jsx": "react-jsx",
+    "jsxImportSource": "preact",
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "noUncheckedIndexedAccess": true
+  }
+}

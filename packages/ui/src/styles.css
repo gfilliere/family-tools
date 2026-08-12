@@ -1,0 +1,56 @@
+/* Shared design tokens. Every app imports this, then adds its own. */
+:root {
+  --concrete: #dfe1da;
+  --ink: #171b14;
+  --card: #edeee8;
+  --green: #2c6e49;
+  --rust: #a6532a;
+  --mute: #6e7268;
+  --hair: #c6c9c0;
+
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --step: 8px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--concrete);
+  color: var(--ink);
+  font-family: var(--font);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: env(safe-area-inset-top) 16px calc(24px + env(safe-area-inset-bottom));
+}
+
+.eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+
+.card {
+  background: var(--card);
+  border-radius: 2px;
+  padding: 14px 16px;
+  margin-bottom: 6px;
+}
+
+button {
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  background: none;
+  border: 1px solid var(--hair);
+  color: var(--ink);
+  border-radius: 2px;
+  padding: 11px 16px;
+  cursor: pointer;
+}
+button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }

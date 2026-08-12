@@ -1,0 +1,18 @@
+{
+  "name": "microapps",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.15.0",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "pnpm --filter shell dev",
+    "build": "pnpm -r build",
+    "check": "tsc --build && oxlint .",
+    "typegen": "pnpm -r run types"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.0",
+    "oxlint": "^1.0.0",
+    "wrangler": "^4.0.0"
+  }
+}

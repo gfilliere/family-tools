@@ -1,0 +1,97 @@
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      app:
+        description: "Deploy one app regardless of what changed"
+        required: false
+        type: choice
+        options: ["", shell, gas]
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Work out which apps actually changed so a typo in the README does not
+  # redeploy everything. Shared packages force a full redeploy.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      apps: ${{ steps.pick.outputs.apps }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            shared:
+              - 'packages/**'
+              - 'pnpm-lock.yaml'
+              - 'tsconfig.base.json'
+            shell:
+              - 'apps/shell/**'
+            gas:
+              - 'apps/gas/**'
+      - id: pick
+        env:
+          MANUAL: ${{ inputs.app }}
+          SHARED: ${{ steps.filter.outputs.shared }}
+          SHELL_CHANGED: ${{ steps.filter.outputs.shell }}
+          GAS_CHANGED: ${{ steps.filter.outputs.gas }}
+        run: |
+          if [ -n "$MANUAL" ]; then
+            echo "apps=[\"$MANUAL\"]" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if [ "$SHARED" = "true" ]; then
+            echo 'apps=["shell","gas"]' >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          list=""
+          [ "$SHELL_CHANGED" = "true" ] && list="$list\"shell\","
+          [ "$GAS_CHANGED" = "true" ] && list="$list\"gas\","
+          echo "apps=[${list%,}]" >> "$GITHUB_OUTPUT"
+
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      # wrangler types writes worker-configuration.d.ts from your bindings.
+      # Without it, tsc has no idea what env.DB is.
+      - run: pnpm typegen
+      - run: pnpm check
+
+  deploy:
+    needs: [changes, check]
+    if: needs.changes.outputs.apps != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: ${{ fromJSON(needs.changes.outputs.apps) }}
+      fail-fast: false
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+
+      - name: Apply D1 migrations
+        if: matrix.app == 'gas'
+        run: pnpm --filter gas run migrate
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Deploy ${{ matrix.app }}
+        run: pnpm --filter ${{ matrix.app }} run deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
