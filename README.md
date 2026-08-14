@@ -81,7 +81,7 @@ Personal data (such as fuel station IDs/locations, emails, or personal photos) i
 ## ⚡ Quick Start
 
 ### 1. Prerequisites
-- Node.js `>=22` & `pnpm >=10` (`corepack enable`)
+- Node.js `>=24` & `pnpm >=10` (`corepack enable`)
 - A Cloudflare account and domain
 - Wrangler CLI logged in (`npx wrangler login`)
 
