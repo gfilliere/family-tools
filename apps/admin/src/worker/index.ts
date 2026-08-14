@@ -169,7 +169,7 @@ app.get("/api/users", async (c) => {
     ).all<UserRow>();
 
     return c.json({
-      users: results.map((u) => ({
+      users: results.map((u: UserRow) => ({
         email: u.email,
         displayName: u.display_name,
         isAdmin: u.is_admin === 1,
