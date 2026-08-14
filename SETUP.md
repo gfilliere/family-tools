@@ -148,9 +148,12 @@ launcher appears.
 
 1. Push the repo to GitHub (private).
 2. Create a scoped API token: dashboard → **My Profile → API Tokens → Create
-   Token → Edit Cloudflare Workers** template. Under Account Resources pick your
-   account; under Zone Resources pick your zone. Copy the token — it's shown
-   once.
+   Token → Edit Cloudflare Workers** template.
+   - Under **Account Resources**, pick your account.
+   - Under **Zone Resources**, pick your zone.
+   - **Crucial Step for D1**: Click **+ Add more** under Permissions and add:
+     - `Account` → **`D1`** → **`Edit`** (required for `wrangler d1 migrations apply` during CI).
+   - Copy the token — it's shown once.
 3. In the GitHub repo: **Settings → Secrets and variables → Actions → New
    repository secret**. Add two:
    - `CLOUDFLARE_API_TOKEN`
