@@ -31,7 +31,7 @@ function App() {
     return () => clearInterval(id);
   }, []);
 
-  const open = (stations ?? []).filter((s) => s.e10 !== null).sort((a, b) => a.e10! - b.e10!);
+  const open = (stations ?? []).filter((s) => s.e10 !== null).toSorted((a, b) => a.e10! - b.e10!);
   const shut = (stations ?? []).filter((s) => s.e10 === null);
   const low = open[0]?.e10 ?? 0;
 
