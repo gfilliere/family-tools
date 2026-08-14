@@ -46,9 +46,6 @@ function App() {
 
   useEffect(() => {
     load();
-    // Refresh every 5 minutes (Tankerkönig rate policy compliant)
-    const id = setInterval(load, 300_000 + Math.random() * 30_000);
-    return () => clearInterval(id);
   }, []);
 
   const open = (stations ?? []).filter((s) => s.e10 !== null).toSorted((a, b) => a.e10! - b.e10!);
