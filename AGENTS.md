@@ -24,10 +24,12 @@ home.example.com/*      ─→  Worker "shell"  (Launcher UI)
 
 1. **`workers_dev: false` MUST BE PRESERVED**:
    Setting `workers_dev: true` in any `wrangler.jsonc` creates an unauthenticated `*.workers.dev` public URL that **completely bypasses Cloudflare Access protection**. Keep `workers_dev: false` strictly enabled.
-2. **Vite Path Alignment**:
-   `vite.config.ts` uses `@cloudflare/vite-plugin` and its `base` setting MUST match the Worker's route path:
-   - Example for `/gas/`: `base: "/gas/"`.
-   - The Cloudflare Vite plugin manages asset bundling and output directory configuration automatically.
+2. **Vite Path Alignment & Asset Hierarchy**:
+   `vite.config.ts` settings `base` and `build.outDir` MUST match the Worker's route path:
+   - Example for `/gas/`: `base: "/gas/"` and `build: { outDir: "dist/client/gas", emptyOutDir: true }`.
+   - `wrangler.jsonc` `assets.directory` points to `./dist/client` and `not_found_handling: "none"`.
+   - This ensures `/gas/assets/x.js` maps straight to `dist/client/gas/assets/x.js` so assets are served directly by the edge without Worker invocation.
+   - In dev, `vite` proxies `/gas/api` to `wrangler dev` (port 8787).
 3. **Binding Types Generation (`typegen`)**:
    Always run `pnpm typegen` after adding or changing bindings (D1, KV, secrets, vars) in `wrangler.jsonc`. This updates `worker-configuration.d.ts`.
 4. **Header Trust**:

@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently -k -n worker,web -c blue,green \"pnpm dev:worker\" \"pnpm dev:web\"",
+    "dev:worker": "wrangler dev --port 8787",
+    "dev:web": "vite",
     "build": "vite build",
     "deploy": "pnpm build && wrangler deploy",
     "types": "wrangler types"
@@ -15,8 +17,8 @@
     "preact": "^10.24.0"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "^1.52.1",
     "@preact/preset-vite": "^2.9.0",
+    "concurrently": "^10.0.4",
     "vite": "^6.0.0",
     "wrangler": "^4.123.0"
   }

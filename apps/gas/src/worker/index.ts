@@ -49,8 +49,13 @@ app.get("/api/history/:id", async (c) => {
   return c.json(results);
 });
 
-/** Anything else under /gas/ that is not a static asset: serve the app shell. */
-app.get("*", (c) => c.env.ASSETS.fetch(new Request(new URL("/gas/", c.req.url))));
+/** Anything else under /gas/ that is not an API route: serve the app shell. */
+app.get("*", async (c) => {
+  if (!c.req.header("accept")?.includes("text/html")) {
+    return c.text(`No asset at ${new URL(c.req.url).pathname}`, 404);
+  }
+  return c.env.ASSETS.fetch(new Request(new URL("/gas/", c.req.url)));
+});
 
 /** Poll, record, and optionally notify. Cron runs bypass Access entirely. */
 async function poll(env: Env): Promise<void> {
