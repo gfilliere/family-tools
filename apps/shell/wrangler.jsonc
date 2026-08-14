@@ -18,10 +18,10 @@
 
   "d1_databases": [
     {
-      "binding": "CORE",
-      "database_name": "core",
-      "database_id": "REPLACE_ME"
-    }
+			"binding": "core",
+			"database_name": "core",
+			"database_id": "85121c8c-9861-4eab-a9aa-9ce1a57f7670"
+		}
   ],
 
   "observability": { "enabled": true }
