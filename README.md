@@ -38,11 +38,16 @@ home.yourdomain.com/*      ──► Worker "shell" (Launcher Hub)
 .
 ├── apps/
 │   ├── shell/           # Root launcher hub & dashboard (at /)
-│   └── gas/             # Real-time fuel price tracker (at /gas/)
+│   ├── gas/             # Real-time fuel price tracker (at /gas/)
+│   │   ├── src/client/  # Preact frontend (built with Vite)
+│   │   ├── src/worker/  # Hono backend API + scheduled cron poller
+│   │   ├── migrations/  # D1 SQLite database migrations for gas database
+│   │   ├── seed.example.sql # Template for local station seeding
+│   │   └── wrangler.jsonc
+│   └── admin/           # User display names & access management (at /admin/)
 │       ├── src/client/  # Preact frontend (built with Vite)
-│       ├── src/worker/  # Hono backend API + scheduled cron poller
-│       ├── migrations/  # D1 SQLite database migrations
-│       ├── seed.example.sql # Template for local station seeding
+│       ├── src/worker/  # Hono backend API + admin authorization gate
+│       ├── migrations/  # D1 SQLite database migrations for core database
 │       └── wrangler.jsonc
 ├── packages/
 │   └── ui/              # Shared design tokens (@family-tools/ui) & auth helpers
@@ -50,8 +55,9 @@ home.yourdomain.com/*      ──► Worker "shell" (Launcher Hub)
 ```
 
 ### Included Micro-Apps:
-1. **`shell`** (`/`): Personalized home launcher featuring time-of-day greetings, user identity display, and quick navigation cards to all family apps.
+1. **`shell`** (`/`): Personalized home launcher featuring time-of-day greetings, user display names, and quick navigation cards to all family apps.
 2. **`gas`** (`/gas/`): Real-world example app monitoring E10 fuel prices via Tankerkönig API. Demonstrates Cloudflare D1 database storage, 7-day price history sparklines, background cron polling, and `ntfy.sh` push notifications when prices drop below a target threshold.
+3. **`admin`** (`/admin/`): Identity and access management app mapping verified Cloudflare Access emails to friendly display names and admin roles. Owns the `core` D1 database schema.
 
 ---
 
@@ -71,10 +77,10 @@ home.yourdomain.com/*      ──► Worker "shell" (Launcher Hub)
 
 ## 🔒 Privacy & Data Isolation
 
-Personal data (such as fuel station IDs/locations, emails, or personal photos) is strictly separated from committed configuration files:
-* **D1 Seeding for Location Data**: Personal location identifiers (such as Tankerkönig station UUIDs) live in your D1 SQLite database via `seed.local.sql`, which is gitignored and never committed.
+Personal data (such as fuel station locations, personal email addresses, display names, or photos) is strictly separated from committed configuration files:
+* **D1 Seeding for Personal Identity & Location Data**: Personal identities and location identifiers live in your D1 SQLite database via `seed.local.sql` files (`apps/admin/seed.local.sql` for user accounts, `apps/gas/seed.local.sql` for fuel station UUIDs), which are gitignored and never committed.
 * **Worker Secrets for Credentials**: API keys and tokens (such as `TANKERKOENIG_KEY`) are managed as server-side Worker secrets (`wrangler secret put`).
-* **Safe Configuration**: `wrangler.jsonc` files contain only non-sensitive runtime parameters (`THRESHOLD_EUR`) and public route names.
+* **Safe Configuration**: `wrangler.jsonc` files contain only non-sensitive runtime parameters (`THRESHOLD_EUR`) and public route names. Plaintext `vars` are never used for personal emails or access identities.
 
 ---
 
@@ -130,7 +136,11 @@ Adding a new app takes just a few minutes:
 * 🔒 **`workers_dev: false` MUST BE PRESERVED**: `wrangler.jsonc` files must keep `workers_dev: false`. Setting this to `true` creates an unauthenticated `*.workers.dev` URL that completely bypasses Cloudflare Access!
 * 🔗 **Vite Base & OutDir Alignment**: `vite.config.ts` `base` and `build.outDir` MUST match the Worker's subpath (e.g. `base: "/gas/"` and `outDir: "dist/client/gas"`).
 * ⚙️ **Run `pnpm typegen` after binding changes**: Updates `worker-configuration.d.ts` from `wrangler.jsonc` definitions.
-* 🛢️ **Unseeded Database Safety**: Worker APIs and cron handlers handle unseeded database tables gracefully. If no enabled stations exist in D1, `/api/prices` returns an empty array with a clear message and the cron polling task remains a safe no-op.
+* 🛢️ **D1 Databases & Binding Names**:
+  - `core`: Shared identity database storing display names and admin roles. Bound as `CORE` in both `admin` and `shell` (shell only reads). Only `apps/admin` owns migrations for `core`.
+  - `gas`: App-specific database storing fuel stations and readings. Bound as `gas` in `apps/gas`.
+  - Binding names (`CORE` vs `gas`) are distinct so they never conflict in Hono context types.
+* 🛢️ **Unseeded Database Safety & Recovery**: Worker APIs handle unseeded database tables gracefully. If no users exist in D1, `/admin` routes return a descriptive `403` prompting the operator to run `pnpm --filter admin seed`, while `/api/me` degrades safely to the email local part.
 
 ---
 

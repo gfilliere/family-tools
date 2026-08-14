@@ -16,5 +16,13 @@
     "not_found_handling": "none"
   },
 
+  "d1_databases": [
+    {
+      "binding": "CORE",
+      "database_name": "core",
+      "database_id": "REPLACE_ME"
+    }
+  ],
+
   "observability": { "enabled": true }
 }

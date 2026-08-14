@@ -3,6 +3,7 @@
   "references": [
     { "path": "./packages/ui" },
     { "path": "./apps/shell" },
-    { "path": "./apps/gas" }
+    { "path": "./apps/gas" },
+    { "path": "./apps/admin" }
   ]
 }

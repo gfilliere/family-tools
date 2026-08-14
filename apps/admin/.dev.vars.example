@@ -1,0 +1,3 @@
+# Local development variables (gitignored in .dev.vars)
+# DEV_EMAIL is used as the fallback identity when running locally without Cloudflare Access headers.
+DEV_EMAIL="admin@example.com"

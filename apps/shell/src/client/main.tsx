@@ -8,8 +8,15 @@ interface AppItem {
   name: string;
   category: string;
   blurb: string;
-  icon: "fuel";
+  icon: "fuel" | "admin";
   badge?: string;
+  adminOnly?: boolean;
+}
+
+interface MeResponse {
+  email: string | null;
+  displayName: string;
+  isAdmin: boolean;
 }
 
 const APPS: AppItem[] = [
@@ -20,6 +27,14 @@ const APPS: AppItem[] = [
     blurb: "Live station prices & threshold alerts near home",
     icon: "fuel",
     badge: "Live",
+  },
+  {
+    path: "/admin/",
+    name: "User Management",
+    category: "System",
+    blurb: "Manage display names and user permissions",
+    icon: "admin",
+    adminOnly: true,
   },
 ];
 
@@ -39,24 +54,16 @@ function formatDate(): string {
   });
 }
 
-function getUserDisplayName(email: string | null): string {
-  if (!email) return "there";
-  const user = email.split("@")[0];
-  if (!user) return "there";
-  const firstPart = user.split(".")[0] ?? user;
-  return firstPart.charAt(0).toUpperCase() + firstPart.slice(1);
-}
-
 function App() {
-  const [email, setEmail] = useState<string | null>(null);
+  const [me, setMe] = useState<MeResponse | null>(null);
   const [greeting, setGreeting] = useState<string>(getGreeting());
   const [today, setToday] = useState<string>(formatDate());
 
   useEffect(() => {
     fetch("/api/me")
-      .then((r) => r.json() as Promise<{ email: string }>)
-      .then((b) => setEmail(b.email))
-      .catch(() => setEmail(null));
+      .then((r) => r.json() as Promise<MeResponse>)
+      .then((b) => setMe(b))
+      .catch(() => setMe(null));
 
     const timer = setInterval(() => {
       setGreeting(getGreeting());
@@ -66,28 +73,28 @@ function App() {
     return () => clearInterval(timer);
   }, []);
 
-  const displayName = getUserDisplayName(email);
+  const visibleApps = APPS.filter((a) => !a.adminOnly || me?.isAdmin);
 
   return (
     <div class="shell-container">
       <header class="head">
         <div class="head-top">
           <span class="date-badge">{today}</span>
-          {email && <span class="email-badge" title={email}>{email}</span>}
+          {me?.email && <span class="email-badge" title={me.email}>{me.email}</span>}
         </div>
         <h1 class="greeting">
-          {greeting}, <span class="user-name">{displayName}</span> 👋
+          {greeting}, <span class="user-name">{me?.displayName ?? "there"}</span> 👋
         </h1>
       </header>
 
       <section class="apps-section">
         <div class="section-title">
           <span>Family Tools</span>
-          <span class="app-count">{APPS.length} {APPS.length === 1 ? "app" : "apps"}</span>
+          <span class="app-count">{visibleApps.length} {visibleApps.length === 1 ? "app" : "apps"}</span>
         </div>
 
         <nav class="app-grid">
-          {APPS.map((a) => (
+          {visibleApps.map((a) => (
             <a key={a.path} class="app-tile" href={a.path}>
               <div class="tile-header">
                 <div class="tile-icon-wrapper">
@@ -97,6 +104,14 @@ function App() {
                       <path d="M15 11h4a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-1" />
                       <path d="M3 22h12" />
                       <line x1="7" y1="9" x2="11" y2="9" />
+                    </svg>
+                  )}
+                  {a.icon === "admin" && (
+                    <svg class="tile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                      <circle cx="9" cy="7" r="4" />
+                      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                     </svg>
                   )}
                 </div>

@@ -105,26 +105,48 @@ grep -rl 'home.example.com' apps/ | xargs sed -i '' 's/example\.com/YOURDOMAIN.c
 
 (drop the `''` after `-i` if you're not on macOS)
 
-### Create the database
+### Create the databases
 
 ```bash
+# 1. Gas database
 cd apps/gas
 npx wrangler d1 create gas
+# Copy the database_id printed into apps/gas/wrangler.jsonc over REPLACE_ME
+
+# 2. Core database (shared identity & user directory)
+cd ../admin
+npx wrangler d1 create core
+# Copy the database_id printed into BOTH apps/admin/wrangler.jsonc and apps/shell/wrangler.jsonc over REPLACE_ME
 ```
 
-It prints a `database_id`. Paste it into `apps/gas/wrangler.jsonc` over
-`REPLACE_ME`. Then create the tables and seed your station labels from your gitignored `seed.local.sql`:
+### Apply database migrations and seed data
+
+Apply migrations and seed initial data to Cloudflare's remote D1 databases:
 
 ```bash
+# Apply migrations
 pnpm --filter gas migrate
+pnpm --filter admin migrate
+
+# Seed gas stations and admin identity from gitignored seed.local.sql files
 pnpm --filter gas seed
+
+cp apps/admin/seed.example.sql apps/admin/seed.local.sql
+# Edit apps/admin/seed.local.sql with your real Cloudflare Access email and display name
+pnpm --filter admin seed
+```
+
+For local offline development with Wrangler, apply migrations and seed locally:
+
+```bash
+pnpm --filter admin run migrate:local
+pnpm --filter admin run seed:local
 ```
 
 ### Fill in config and secrets
 
-In `apps/gas/wrangler.jsonc`, set `THRESHOLD_EUR` to the price threshold you'd act on (e.g., `1.699`) and optionally `NTFY_TOPIC`.
-
-The Tankerkönig API key is a secret, not a var — it must never land in git:
+1. In `apps/gas/wrangler.jsonc`, set `THRESHOLD_EUR` to the price threshold you'd act on (e.g., `1.699`) and optionally `NTFY_TOPIC`.
+2. The Tankerkönig API key is a secret, not a var — it must never land in git:
 
 ```bash
 npx wrangler secret put TANKERKOENIG_KEY
@@ -137,10 +159,11 @@ cd ../..
 pnpm typegen        # generates worker-configuration.d.ts from your bindings
 pnpm --filter shell run deploy
 pnpm --filter gas run deploy
+pnpm --filter admin run deploy
 ```
 
 Visit `https://home.example.com`. Access should challenge you, then the
-launcher appears.
+launcher appears. Admins will see the "User Directory" tile to manage display names.
 
 ---
 

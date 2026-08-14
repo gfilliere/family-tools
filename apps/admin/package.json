@@ -1,0 +1,29 @@
+{
+  "name": "admin",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k -n worker,web -c blue,green \"pnpm dev:worker\" \"pnpm dev:web\"",
+    "dev:worker": "wrangler dev --port 8788",
+    "dev:web": "vite",
+    "build": "vite build",
+    "deploy": "pnpm build && wrangler deploy",
+    "migrate": "wrangler d1 migrations apply core --remote",
+    "migrate:local": "wrangler d1 migrations apply core --local",
+    "seed": "node -e 'if (!require(\"fs\").existsSync(\"seed.local.sql\")) { console.error(\"Error: seed.local.sql not found. Copy seed.example.sql to seed.local.sql and fill in your admin email first.\"); process.exit(1); }' && wrangler d1 execute core --remote --file=seed.local.sql",
+    "seed:local": "node -e 'if (!require(\"fs\").existsSync(\"seed.local.sql\")) { console.error(\"Error: seed.local.sql not found. Copy seed.example.sql to seed.local.sql and fill in your admin email first.\"); process.exit(1); }' && wrangler d1 execute core --local --file=seed.local.sql",
+    "types": "wrangler types"
+  },
+  "dependencies": {
+    "@family-tools/ui": "workspace:*",
+    "hono": "^4.6.0",
+    "preact": "^10.24.0"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.9.0",
+    "concurrently": "^10.0.4",
+    "vite": "^6.0.0",
+    "wrangler": "^4.123.0"
+  }
+}
