@@ -117,6 +117,14 @@ npx wrangler d1 create gas
 cd ../admin
 npx wrangler d1 create core
 # Copy the database_id printed into BOTH apps/admin/wrangler.jsonc and apps/shell/wrangler.jsonc over REPLACE_ME
+
+# 3. Sous-Chef databases (one database per Worker)
+cd ../cookbook
+npx wrangler d1 create cookbook
+cd ../list
+npx wrangler d1 create list
+# The new configs intentionally omit IDs; current Wrangler resolves/provisions
+# these resources by database_name.
 ```
 
 ### Apply database migrations and seed data
@@ -127,6 +135,8 @@ Apply migrations and seed initial data to Cloudflare's remote D1 databases:
 # Apply migrations
 pnpm --filter gas migrate
 pnpm --filter admin migrate
+pnpm --filter cookbook migrate
+pnpm --filter list migrate
 
 # Seed gas stations and admin identity from gitignored seed.local.sql files
 pnpm --filter gas seed
@@ -141,7 +151,14 @@ For local offline development with Wrangler, apply migrations and seed locally:
 ```bash
 pnpm --filter admin run migrate:local
 pnpm --filter admin run seed:local
+pnpm --filter cookbook exec wrangler d1 migrations apply cookbook --local
+pnpm --filter list exec wrangler d1 migrations apply list --local
 ```
+
+`pnpm --filter cookbook dev` starts the cookbook, shopping-list Worker, and
+Vite client together so the local `LIST_APP` service binding resolves. Workers
+AI and Browser Run stay remote in development and can consume your Cloudflare
+account allocation when an import reaches those tiers.
 
 ### Fill in config and secrets
 
@@ -160,6 +177,8 @@ pnpm typegen        # generates worker-configuration.d.ts from your bindings
 pnpm --filter shell run deploy
 pnpm --filter gas run deploy
 pnpm --filter admin run deploy
+pnpm --filter list run deploy       # deploy the service target first
+pnpm --filter cookbook run deploy
 ```
 
 Visit `https://home.example.com`. Access should challenge you, then the
@@ -195,6 +214,9 @@ On Android, in Chrome:
 
 1. Open `https://home.example.com/gas/`, sign in through Access.
 2. Menu → **Add to Home screen** → Install.
+
+Repeat for `/cookbook/` and `/list/`; they have separate manifests, scopes, and
+home-screen icons. Sharing a URL to Cookbook from Chrome opens an import draft.
 
 Because each app declares its own `scope`, they install as separate icons even
 though they share one origin. Your wife does the same on her phone with her own

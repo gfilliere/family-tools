@@ -24,6 +24,8 @@ Sub-apps are routed using Cloudflare Worker route precedence rules. Specific sub
 
 ```
 home.yourdomain.com/gas/*  ──► Worker "gas"   (Hono + Preact + D1 + Cron)
+home.yourdomain.com/cookbook/* ─► Worker "cookbook" (Preact + D1 + AI)
+home.yourdomain.com/list/* ──► Worker "list"  (Preact + D1 + RPC entrypoint)
 home.yourdomain.com/*      ──► Worker "shell" (Launcher Hub)
                      ▲
                      │
@@ -58,6 +60,8 @@ home.yourdomain.com/*      ──► Worker "shell" (Launcher Hub)
 1. **`shell`** (`/`): Personalized home launcher featuring time-of-day greetings, user display names, and quick navigation cards to all family apps.
 2. **`gas`** (`/gas/`): Real-world example app monitoring E10 fuel prices via Tankerkönig API. Demonstrates Cloudflare D1 database storage, 7-day price history sparklines, background cron polling, and `ntfy.sh` push notifications when prices drop below a target threshold.
 3. **`admin`** (`/admin/`): Identity and access management app mapping verified Cloudflare Access emails to friendly display names and admin roles. Owns the `core` D1 database schema.
+4. **`cookbook`** (`/cookbook/`): Recipe catalog with JSON-LD/AI imports, metric normalisation, a Web Share Target, and a service binding to the shopping list.
+5. **`list`** (`/list/`): Installable one-handed shopping list grouped by aisle or recipe, with conservative quantity aggregation.
 
 ---
 

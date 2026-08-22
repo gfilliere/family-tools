@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "list",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-08-18",
+  "compatibility_flags": ["nodejs_compat"],
+  // Required: a workers.dev URL would bypass the Cloudflare Access gate.
+  "workers_dev": false,
+  "routes": [
+    {
+      "pattern": "home.thekleefillieres.com/list/*",
+      "zone_name": "thekleefillieres.com"
+    }
+  ],
+  "assets": {
+    "directory": "./dist/client",
+    "binding": "ASSETS",
+    "not_found_handling": "none"
+  },
+  "d1_databases": [
+    {
+      "binding": "LIST",
+      "database_name": "list",
+      "database_id": "03506466-8777-4283-9ea3-d8936ef59951"
+    }
+  ],
+  "observability": { "enabled": true }
+}

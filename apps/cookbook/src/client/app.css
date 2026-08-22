@@ -1,0 +1,69 @@
+.cookbook-app { display: flex; flex-direction: column; gap: 18px; padding-top: 18px; }
+.app-nav, .title-row, .card-top, .recipe-meta, .sort-row, .minor-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.app-nav a, .back { color: var(--green); text-decoration: none; font-size: 12px; font-weight: 700; }
+button.back { border: 0; padding: 0; align-self: flex-start; letter-spacing: .05em; }
+h1 { font-size: 30px; line-height: 1.12; letter-spacing: -.035em; }
+.title-row h1 { font-size: 32px; }
+.primary { background: var(--green); color: white; border-color: var(--green); }
+.rust { background: var(--rust); color: white; border-color: var(--rust); }
+.compact { padding: 10px 13px; }
+.notice { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 11px 13px; background: #d3e1d6; border-left: 3px solid var(--green); font-size: 12px; }
+.notice.error { background: #ead6d0; border-color: #8b2f24; color: #6b211a; }
+.notice button { border: 0; padding: 0; font-size: 20px; }
+.catalog-tools { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
+input, textarea, select { width: 100%; border: 1px solid var(--hair); border-radius: 2px; background: #f7f7f3; color: var(--ink); padding: 11px 12px; font: inherit; font-size: 15px; }
+textarea { resize: vertical; line-height: 1.5; }
+input:focus, textarea:focus, select:focus { outline: 2px solid var(--green); outline-offset: 1px; border-color: var(--green); }
+.sort-row { color: var(--mute); font-size: 11px; text-transform: uppercase; letter-spacing: .1em; }
+.sort-row label { display: flex; align-items: center; gap: 7px; }
+.sort-row select { width: auto; padding: 6px 8px; font-size: 12px; }
+.catalog { display: flex; flex-direction: column; gap: 8px; }
+button.recipe-card { display: flex; flex-direction: column; gap: 13px; width: 100%; padding: 16px; text-align: left; background: var(--card); border-color: var(--hair); text-transform: none; letter-spacing: 0; }
+.recipe-card h2 { font-size: 18px; line-height: 1.2; }
+.card-top { align-items: flex-start; width: 100%; }
+.cooked-badge { flex: 0 0 auto; padding: 3px 7px; border-radius: 999px; background: #d3e1d6; color: var(--green); font-size: 9px; text-transform: uppercase; letter-spacing: .08em; }
+.cooked-badge.never { background: #e5d8d1; color: var(--rust); }
+.recipe-meta { justify-content: flex-start; flex-wrap: wrap; font-size: 11px; color: var(--mute); }
+.recipe-meta > span + span { border-left: 1px solid var(--hair); padding-left: 10px; }
+.stars { color: var(--rust); letter-spacing: .06em; }
+.tags { display: flex; flex-wrap: wrap; gap: 5px; }
+.tags span { background: var(--concrete); padding: 3px 6px; font-size: 10px; color: var(--mute); }
+.new-button { align-self: center; margin: 4px 0 24px; }
+.panel, .recipe-form, .detail { display: flex; flex-direction: column; gap: 20px; }
+.lede { color: var(--mute); font-size: 14px; margin-top: 7px; line-height: 1.5; }
+label { display: flex; flex-direction: column; gap: 6px; color: var(--mute); font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.or { display: flex; align-items: center; gap: 10px; color: var(--mute); font-size: 10px; text-transform: uppercase; letter-spacing: .12em; }
+.or::before, .or::after { content: ""; height: 1px; background: var(--hair); flex: 1; }
+.recipe-image { width: calc(100% + 32px); margin-left: -16px; aspect-ratio: 16 / 10; object-fit: cover; }
+.detail header { display: flex; flex-direction: column; gap: 9px; }
+.wet-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; position: sticky; top: 8px; z-index: 2; }
+.wet-actions button { min-height: 58px; padding: 10px; letter-spacing: .1em; box-shadow: 0 3px 10px rgba(23,27,20,.12); }
+.section-label { margin-bottom: 10px; color: var(--mute); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; }
+.ingredients { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+.ingredients li { display: flex; flex-direction: column; gap: 3px; padding: 11px 12px; background: var(--card); border-left: 3px solid var(--green); }
+.ingredients strong { font-size: 15px; }
+.ingredients small { color: var(--mute); font-size: 11px; line-height: 1.35; }
+.markdown { font-size: 16px; line-height: 1.65; }
+.markdown > * + * { margin-top: 13px; }
+.markdown ol, .markdown ul { padding-left: 22px; }
+.markdown li + li { margin-top: 9px; }
+.markdown a, .source { color: var(--green); }
+.notes { padding: 14px; background: #e7e2d4; }
+.notes p { white-space: pre-wrap; font-size: 14px; line-height: 1.5; }
+.source { font-size: 13px; }
+.minor-actions { justify-content: flex-end; border-top: 1px solid var(--hair); padding-top: 16px; }
+.danger { color: #7d281f; border-color: #9d645d; }
+.field-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+fieldset { border: 0; display: flex; flex-direction: column; gap: 10px; }
+legend { margin-bottom: 10px; color: var(--mute); font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.ingredient-row { display: flex; flex-direction: column; gap: 4px; padding: 8px; background: var(--card); }
+.ingredient-fields { display: grid; grid-template-columns: 64px 76px 1fr 36px; gap: 4px; }
+.ingredient-fields button { padding: 8px; font-size: 18px; }
+.original { font-size: 12px; color: var(--mute); background: transparent; border-style: dashed; }
+.preview-toggle { align-self: flex-end; margin-top: -26px; padding: 3px 7px; }
+.markdown.preview { min-height: 180px; padding: 14px; background: var(--card); color: var(--ink); text-transform: none; letter-spacing: 0; font-weight: 400; }
+.save { min-height: 52px; margin-bottom: 28px; }
+.empty { text-align: center; padding: 38px 16px; color: var(--mute); }
+.empty span { display: block; font-size: 32px; color: var(--rust); }
+.empty h2 { color: var(--ink); margin: 8px 0 4px; }
+@media (max-width: 380px) { .field-grid { grid-template-columns: 1fr 1fr; } .ingredient-fields { grid-template-columns: 58px 70px 1fr; } .ingredient-fields button { grid-column: 3; } }

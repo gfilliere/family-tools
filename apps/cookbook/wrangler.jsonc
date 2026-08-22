@@ -1,0 +1,36 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cookbook",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-08-18",
+  "compatibility_flags": ["nodejs_compat"],
+  // Required: a workers.dev URL would bypass the Cloudflare Access gate.
+  "workers_dev": false,
+  "routes": [
+    {
+      "pattern": "home.thekleefillieres.com/cookbook/*",
+      "zone_name": "thekleefillieres.com"
+    }
+  ],
+  "assets": {
+    "directory": "./dist/client",
+    "binding": "ASSETS",
+    "not_found_handling": "none"
+  },
+  "d1_databases": [
+    {
+      "binding": "COOKBOOK",
+      "database_name": "cookbook",
+      "database_id": "e1c944f7-4d08-4c00-82d4-99d572358a4a"
+    }
+  ],
+  "ai": { "binding": "AI", "remote": true },
+  "browser": { "binding": "BROWSER", "remote": true },
+  "services": [
+    { "binding": "LIST_APP", "service": "list", "entrypoint": "ShoppingList" }
+  ],
+  "vars": {
+    "RECIPE_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+  },
+  "observability": { "enabled": true }
+}

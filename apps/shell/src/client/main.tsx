@@ -8,7 +8,7 @@ interface AppItem {
   name: string;
   category: string;
   blurb: string;
-  icon: "fuel" | "admin";
+  icon: "fuel" | "admin" | "cookbook" | "list";
   badge?: string;
   adminOnly?: boolean;
 }
@@ -20,6 +20,22 @@ interface MeResponse {
 }
 
 const APPS: AppItem[] = [
+  {
+    path: "/cookbook/",
+    name: "Cookbook",
+    category: "Kitchen",
+    blurb: "Import recipes, cook from a clean view, and remember old favourites",
+    icon: "cookbook",
+    badge: "New",
+  },
+  {
+    path: "/list/",
+    name: "Shopping List",
+    category: "Kitchen",
+    blurb: "A one-handed grocery list grouped by aisle or recipe",
+    icon: "list",
+    badge: "New",
+  },
   {
     path: "/gas/",
     name: "Fuel Prices (E10)",
@@ -112,6 +128,16 @@ function App() {
                       <circle cx="9" cy="7" r="4" />
                       <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
                       <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                    </svg>
+                  )}
+                  {a.icon === "cookbook" && (
+                    <svg class="tile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" /><path d="M8 7h8M8 11h8" />
+                    </svg>
+                  )}
+                  {a.icon === "list" && (
+                    <svg class="tile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="m3 7 2 2 4-4M3 17l2 2 4-4M13 6h8M13 12h8M13 18h8" />
                     </svg>
                   )}
                 </div>
