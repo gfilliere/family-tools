@@ -9,7 +9,7 @@ on:
         description: "Deploy one app regardless of what changed"
         required: false
         type: choice
-        options: ["", shell, gas, admin]
+        options: ["", shell, gas, admin, cookbook, list]
 
 concurrency:
   group: deploy-${{ github.ref }}
@@ -38,6 +38,10 @@ jobs:
               - 'apps/gas/**'
             admin:
               - 'apps/admin/**'
+            cookbook:
+              - 'apps/cookbook/**'
+            list:
+              - 'apps/list/**'
       - id: pick
         env:
           MANUAL: ${{ inputs.app }}
@@ -45,17 +49,21 @@ jobs:
           SHELL_CHANGED: ${{ steps.filter.outputs.shell }}
           GAS_CHANGED: ${{ steps.filter.outputs.gas }}
           ADMIN_CHANGED: ${{ steps.filter.outputs.admin }}
+          COOKBOOK_CHANGED: ${{ steps.filter.outputs.cookbook }}
+          LIST_CHANGED: ${{ steps.filter.outputs.list }}
         run: |
           if [ -n "$MANUAL" ]; then
             echo "apps=[\"$MANUAL\"]" >> "$GITHUB_OUTPUT"; exit 0
           fi
           if [ "$SHARED" = "true" ]; then
-            echo 'apps=["shell","gas","admin"]' >> "$GITHUB_OUTPUT"; exit 0
+            echo 'apps=["shell","gas","admin","cookbook","list"]' >> "$GITHUB_OUTPUT"; exit 0
           fi
           list=""
           [ "$SHELL_CHANGED" = "true" ] && list="$list\"shell\","
           [ "$GAS_CHANGED" = "true" ] && list="$list\"gas\","
           [ "$ADMIN_CHANGED" = "true" ] && list="$list\"admin\","
+          [ "$COOKBOOK_CHANGED" = "true" ] && list="$list\"cookbook\","
+          [ "$LIST_CHANGED" = "true" ] && list="$list\"list\","
           echo "apps=[${list%,}]" >> "$GITHUB_OUTPUT"
 
   check:
@@ -94,7 +102,7 @@ jobs:
           pnpm install --frozen-lockfile
 
       - name: Apply D1 migrations
-        if: matrix.app == 'gas' || matrix.app == 'admin'
+        if: matrix.app == 'gas' || matrix.app == 'admin' || matrix.app == 'cookbook' || matrix.app == 'list'
         run: pnpm --filter ${{ matrix.app }} run migrate
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

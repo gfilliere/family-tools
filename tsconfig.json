@@ -4,6 +4,8 @@
     { "path": "./packages/ui" },
     { "path": "./apps/shell" },
     { "path": "./apps/gas" },
-    { "path": "./apps/admin" }
+    { "path": "./apps/admin" },
+    { "path": "./apps/cookbook" },
+    { "path": "./apps/list" }
   ]
 }

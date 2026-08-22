@@ -1,0 +1,18 @@
+{
+  "name": "Sous-Chef Cookbook",
+  "short_name": "Cookbook",
+  "start_url": "/cookbook/",
+  "scope": "/cookbook/",
+  "display": "standalone",
+  "background_color": "#dfe1da",
+  "theme_color": "#2c6e49",
+  "icons": [
+    { "src": "/cookbook/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ],
+  "share_target": {
+    "action": "/cookbook/share",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": { "title": "title", "text": "text", "url": "url" }
+  }
+}
