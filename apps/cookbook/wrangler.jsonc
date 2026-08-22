@@ -20,7 +20,8 @@
   "d1_databases": [
     {
       "binding": "COOKBOOK",
-      "database_name": "cookbook"
+      "database_name": "cookbook",
+      "database_id": "e1c944f7-4d08-4c00-82d4-99d572358a4a"
     }
   ],
   "ai": { "binding": "AI", "remote": true },

@@ -20,7 +20,8 @@
   "d1_databases": [
     {
       "binding": "LIST",
-      "database_name": "list"
+      "database_name": "list",
+      "database_id": "03506466-8777-4283-9ea3-d8936ef59951"
     }
   ],
   "observability": { "enabled": true }
