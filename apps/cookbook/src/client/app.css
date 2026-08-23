@@ -17,17 +17,133 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--green); out
 .sort-row { color: var(--mute); font-size: 11px; text-transform: uppercase; letter-spacing: .1em; }
 .sort-row label { display: flex; align-items: center; gap: 7px; }
 .sort-row select { width: auto; padding: 6px 8px; font-size: 12px; }
-.catalog { display: flex; flex-direction: column; gap: 8px; }
-button.recipe-card { display: flex; flex-direction: column; gap: 13px; width: 100%; padding: 16px; text-align: left; background: var(--card); border-color: var(--hair); text-transform: none; letter-spacing: 0; }
-.recipe-card h2 { font-size: 18px; line-height: 1.2; }
-.card-top { align-items: flex-start; width: 100%; }
-.cooked-badge { flex: 0 0 auto; padding: 3px 7px; border-radius: 999px; background: #d3e1d6; color: var(--green); font-size: 9px; text-transform: uppercase; letter-spacing: .08em; }
-.cooked-badge.never { background: #e5d8d1; color: var(--rust); }
-.recipe-meta { justify-content: flex-start; flex-wrap: wrap; font-size: 11px; color: var(--mute); }
-.recipe-meta > span + span { border-left: 1px solid var(--hair); padding-left: 10px; }
-.stars { color: var(--rust); letter-spacing: .06em; }
-.tags { display: flex; flex-wrap: wrap; gap: 5px; }
-.tags span { background: var(--concrete); padding: 3px 6px; font-size: 10px; color: var(--mute); }
+.catalog { display: flex; flex-direction: column; gap: 10px; }
+button.recipe-card {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 12px;
+  width: 100%;
+  padding: 12px;
+  text-align: left;
+  background: var(--card);
+  border: 1px solid var(--hair);
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(23, 27, 20, 0.04);
+  text-transform: none;
+  letter-spacing: 0;
+  cursor: pointer;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+button.recipe-card:hover {
+  border-color: #abb0a3;
+  box-shadow: 0 2px 6px rgba(23, 27, 20, 0.08);
+}
+.recipe-thumb-container {
+  width: 76px;
+  height: 76px;
+  min-width: 76px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #e2e4dc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.recipe-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.recipe-thumb-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e3e6dd;
+  color: var(--mute);
+}
+.recipe-fallback-icon {
+  width: 32px;
+  height: 32px;
+  opacity: 0.6;
+}
+.recipe-card-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 6px;
+}
+.recipe-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.recipe-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.recipe-cooked-status {
+  flex-shrink: 0;
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.recipe-cooked-status.cooked {
+  background: #d8e5db;
+  color: var(--green);
+  font-weight: 600;
+}
+.recipe-cooked-status.never {
+  background: transparent;
+  color: var(--mute);
+  border: 1px solid var(--hair);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.recipe-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--mute);
+  line-height: 1.2;
+}
+.recipe-meta > * + *::before {
+  content: "·";
+  margin-right: 8px;
+  color: var(--hair);
+  font-weight: bold;
+}
+.stars { color: var(--rust); letter-spacing: .06em; font-size: 11px; }
+.tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.tag-pill {
+  background: #e2e4dc;
+  padding: 2px 7px;
+  font-size: 10px;
+  color: var(--ink);
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
 .new-button { align-self: center; margin: 4px 0 24px; }
 .panel, .recipe-form, .detail { display: flex; flex-direction: column; gap: 20px; }
 .lede { color: var(--mute); font-size: 14px; margin-top: 7px; line-height: 1.5; }

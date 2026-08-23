@@ -15,6 +15,7 @@ export interface RecipeSummary {
   title: string;
   cookMinutes: number | null;
   rating: number | null;
+  imageUrl?: string | null;
   lastCookedAt: string | null;
   ingredientCount: number;
   tags: string[];
