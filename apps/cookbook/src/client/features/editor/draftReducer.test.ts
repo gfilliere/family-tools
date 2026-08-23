@@ -21,7 +21,7 @@ describe("draftReducer", () => {
     ]);
   });
 
-  it("updates scalar fields and comma-separated tags", () => {
+  it("updates scalar fields and canonicalizes comma-separated tag spacing", () => {
     const initial = emptyRecipeDraft();
     const titled = draftReducer(initial, {
       type: "fieldChanged",
@@ -30,10 +30,10 @@ describe("draftReducer", () => {
     });
     const tagged = draftReducer(titled, {
       type: "tagsChanged",
-      value: "baking, weekend",
+      value: "baking,      weekend",
     });
 
     expect(tagged.title).toBe("Bread");
-    expect(tagged.tags).toEqual(["baking", " weekend"]);
+    expect(tagged.tags).toEqual(["baking", "weekend"]);
   });
 });
