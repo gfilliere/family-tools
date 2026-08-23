@@ -9,7 +9,8 @@
   "scripts": {
     "dev": "pnpm --filter shell dev",
     "build": "pnpm -r build",
-    "check": "tsc --build && oxlint .",
+    "check": "tsc --build && oxlint . && pnpm test",
+    "test": "pnpm --filter cookbook test",
     "typegen": "pnpm -r run types"
   },
   "devDependencies": {

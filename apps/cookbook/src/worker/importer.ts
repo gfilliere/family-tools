@@ -164,7 +164,7 @@ function conversionData(result: unknown): string {
   return "";
 }
 
-function aiResponse(result: unknown): unknown {
+export function parseAiResponse(result: unknown): unknown {
   if (!isObject(result)) return result;
   const response = result.response;
   if (typeof response === "string") {
@@ -176,23 +176,28 @@ function aiResponse(result: unknown): unknown {
   return response;
 }
 
+export function recipeModelOptions(prompt: string, attempt: number) {
+  const messages = [
+    { role: "system" as const, content: "You extract cooking recipes into the exact requested JSON schema. Always return at least one ingredient when the source contains ingredients." },
+    ...(attempt > 0 ? [{ role: "system" as const, content: "The previous response was empty or invalid. Re-read the source, populate every required field, and include all source ingredients." }] : []),
+    { role: "user" as const, content: prompt },
+  ];
+  return {
+    messages,
+    max_tokens: MAX_AI_OUTPUT_TOKENS,
+    temperature: 0.2,
+    response_format: { type: "json_schema" as const, json_schema: aiRecipeJsonSchema },
+  };
+}
+
 async function extractWithAi(env: Env, markdown: string, sourceUrl: string | null, tier: "ai" | "browser"): Promise<RecipeInput & { importTier: string }> {
   const prompt = `Extract one usable recipe from the Markdown. The ingredients array must contain every ingredient from the source and must never be empty when the source contains an ingredient list. For every ingredient, keep the source line verbatim in original and return a clean canonical name containing only the food identity: remove quantities, units, packaging, measurement notes, preparation instructions, and surrounding commentary. For example, "2 cups (standard measuring cup) uncooked short-grain white rice" has name "uncooked short-grain white rice". Return ingredient facts keyed by those clean names: one aisle from the allowed list and gramsPerCup only when a reliable dry-volume density is known. Instructions must be Markdown. Do not invent missing values.\n\n${markdown.slice(0, 180_000)}`;
   let parsed: ReturnType<typeof aiRecipeSchema.parse> | null = null;
   let lastError: unknown = null;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      const result = await env.AI.run(env.RECIPE_MODEL, {
-        messages: [
-          { role: "system", content: "You extract cooking recipes into the exact requested JSON schema. Always return at least one ingredient when the source contains ingredients." },
-          ...(attempt > 0 ? [{ role: "system" as const, content: "The previous response was empty or invalid. Re-read the source, populate every required field, and include all source ingredients." }] : []),
-          { role: "user", content: prompt },
-        ],
-        max_tokens: MAX_AI_OUTPUT_TOKENS,
-        temperature: 0.2,
-        response_format: { type: "json_schema", json_schema: aiRecipeJsonSchema },
-      });
-      parsed = aiRecipeSchema.parse(aiResponse(result));
+      const result = await env.AI.run(env.RECIPE_MODEL, recipeModelOptions(prompt, attempt));
+      parsed = aiRecipeSchema.parse(parseAiResponse(result));
       break;
     } catch (error) { lastError = error; }
   }
