@@ -1,8 +1,8 @@
-name: deploy
+name: check and deploy
 
 on:
   push:
-    branches: [main]
+  pull_request:
   workflow_dispatch:
     inputs:
       app:
@@ -84,7 +84,7 @@ jobs:
 
   deploy:
     needs: [changes, check]
-    if: needs.changes.outputs.apps != '[]'
+    if: needs.changes.outputs.apps != '[]' && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     strategy:
       matrix:
