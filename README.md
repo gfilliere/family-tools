@@ -150,5 +150,7 @@ Adding a new app takes just a few minutes:
 
 ## 📄 License & Attribution
 
-- **License**: MIT
+- **Code**: Copyright © 2026 Guillaume Fillière. Licensed under the [GNU Affero General Public License version 3](./LICENSE) only (`AGPL-3.0-only`).
+- **Branding**: The project name, logos, and other branding are not licensed for reuse.
+- **Commercial licensing**: Alternative commercial licensing may be available on request.
 - **Fuel Data**: Provided by Markttransparenzstelle für Kraftstoffe via [tankerkoenig.de](https://creativecommons.tankerkoenig.de/) under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
