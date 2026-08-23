@@ -1,6 +1,7 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { Hono } from "hono";
 import { userEmail } from "@family-tools/ui";
+import { normaliseName, sameMergeBucket } from "./identity";
 
 const AISLES = [
   "Produce", "Dairy & Eggs", "Meat & Seafood", "Bakery", "Pantry",
@@ -10,6 +11,7 @@ type Aisle = (typeof AISLES)[number];
 
 export interface ShoppingItemInput {
   name: string;
+  canonicalName?: string | null;
   qty: number | null;
   unit: string | null;
   aisle?: string | null;
@@ -24,6 +26,7 @@ export interface ItemSource {
 interface ItemRow {
   id: number;
   name: string;
+  canonical_name: string | null;
   qty: number | null;
   unit: string | null;
   aisle: string;
@@ -37,10 +40,6 @@ interface ItemRow {
 const MAX_NAME = 160;
 const MAX_UNIT = 24;
 
-export function normaliseName(value: string): string {
-  return value.trim().toLocaleLowerCase().replace(/\s+/g, " ").replace(/s$/, "");
-}
-
 function cleanItem(input: ShoppingItemInput): ShoppingItemInput {
   const name = typeof input.name === "string" ? input.name.trim().slice(0, MAX_NAME) : "";
   if (!name) throw new Error("Every item needs a name.");
@@ -50,7 +49,10 @@ function cleanItem(input: ShoppingItemInput): ShoppingItemInput {
   const unit = typeof input.unit === "string" && input.unit.trim()
     ? input.unit.trim().slice(0, MAX_UNIT)
     : null;
-  return { name, qty: input.qty, unit, aisle: input.aisle ?? null };
+  const canonicalName = typeof input.canonicalName === "string" && input.canonicalName.trim()
+    ? normaliseName(input.canonicalName).slice(0, MAX_NAME)
+    : null;
+  return { name, canonicalName, qty: input.qty, unit, aisle: input.aisle ?? null };
 }
 
 function knownAisle(name: string): Aisle {
@@ -67,19 +69,53 @@ function knownAisle(name: string): Aisle {
   return "Other";
 }
 
-async function classify(db: D1Database, item: ShoppingItemInput): Promise<Aisle> {
+async function classify(db: D1Database, item: ShoppingItemInput, canonicalName: string): Promise<Aisle> {
   if (item.aisle && AISLES.includes(item.aisle as Aisle)) return item.aisle as Aisle;
-  const key = normaliseName(item.name);
+  const key = normaliseName(canonicalName);
   const cached = await db.prepare(
     "SELECT aisle FROM ingredient_aisles WHERE name_normalised = ?1",
   ).bind(key).first<{ aisle: string }>();
   if (cached && AISLES.includes(cached.aisle as Aisle)) return cached.aisle as Aisle;
-  const aisle = knownAisle(item.name);
+  const aisle = knownAisle(canonicalName);
   await db.prepare(
     `INSERT INTO ingredient_aisles(name_normalised, aisle) VALUES (?1, ?2)
      ON CONFLICT(name_normalised) DO UPDATE SET aisle = excluded.aisle, updated_at = datetime('now')`,
   ).bind(key, aisle).run();
   return aisle;
+}
+
+async function rememberIdentity(db: D1Database, sourceName: string, canonicalName: string): Promise<void> {
+  const sourceAlias = normaliseName(sourceName);
+  const canonicalAlias = normaliseName(canonicalName);
+  const exactSource = sourceName.trim().toLocaleLowerCase();
+  await db.batch([
+    db.prepare(
+      `INSERT INTO ingredient_aliases(alias_normalised, canonical_name) VALUES (?1, ?2)
+       ON CONFLICT(alias_normalised) DO UPDATE SET canonical_name=excluded.canonical_name, updated_at=datetime('now')`,
+    ).bind(sourceAlias, canonicalAlias),
+    db.prepare(
+      `INSERT INTO ingredient_aliases(alias_normalised, canonical_name) VALUES (?1, ?2)
+       ON CONFLICT(alias_normalised) DO UPDATE SET canonical_name=excluded.canonical_name, updated_at=datetime('now')`,
+    ).bind(canonicalAlias, canonicalAlias),
+    db.prepare(
+      `UPDATE items SET canonical_name = ?1
+       WHERE checked_at IS NULL AND (lower(trim(name)) = ?2 OR lower(trim(canonical_name)) = ?2)`,
+    ).bind(canonicalAlias, exactSource),
+  ]);
+}
+
+async function resolveCanonicalName(db: D1Database, item: ShoppingItemInput): Promise<string> {
+  if (item.canonicalName) {
+    await rememberIdentity(db, item.name, item.canonicalName);
+    return normaliseName(item.canonicalName);
+  }
+  const alias = normaliseName(item.name);
+  const cached = await db.prepare(
+    "SELECT canonical_name FROM ingredient_aliases WHERE alias_normalised = ?1",
+  ).bind(alias).first<{ canonical_name: string }>();
+  const canonicalName = cached?.canonical_name ? normaliseName(cached.canonical_name) : alias;
+  await rememberIdentity(db, item.name, canonicalName);
+  return canonicalName;
 }
 
 function mergeSourceTitles(current: string | null, incoming: string | null): string | null {
@@ -88,6 +124,12 @@ function mergeSourceTitles(current: string | null, incoming: string | null): str
   const titles = new Set(current.split(" + ").map((title) => title.trim()));
   titles.add(incoming);
   return [...titles].join(" + ").slice(0, 400);
+}
+
+function mergeSourceNames(current: string, incoming: string): string {
+  const names = new Map(current.split(" / ").map((name) => [name.trim().toLocaleLowerCase(), name.trim()]));
+  names.set(incoming.trim().toLocaleLowerCase(), incoming.trim());
+  return [...names.values()].filter(Boolean).join(" / ").slice(0, MAX_NAME);
 }
 
 async function insertItems(
@@ -103,24 +145,36 @@ async function insertItems(
   let added = 0;
   for (const raw of rawItems) {
     const item = cleanItem(raw);
-    const aisle = await classify(db, item);
+    const canonicalName = await resolveCanonicalName(db, item);
+    const aisle = await classify(db, item, canonicalName);
     const open = await db.prepare(
-      "SELECT id, name, qty, unit, source_title FROM items WHERE checked_at IS NULL ORDER BY id",
-    ).all<Pick<ItemRow, "id" | "name" | "qty" | "unit" | "source_title">>();
-    const match = item.qty !== null
-      ? open.results.find((row) => normaliseName(row.name) === normaliseName(item.name) && row.unit === item.unit && row.qty !== null)
-      : undefined;
+      "SELECT id, name, canonical_name, qty, unit, source_title FROM items WHERE checked_at IS NULL ORDER BY id",
+    ).all<Pick<ItemRow, "id" | "name" | "canonical_name" | "qty" | "unit" | "source_title">>();
+    const match = open.results.find((row) => sameMergeBucket(
+      { canonicalName: row.canonical_name ?? row.name, qty: row.qty, unit: row.unit },
+      { canonicalName, qty: item.qty, unit: item.unit },
+    ));
 
     if (match && match.qty !== null && item.qty !== null) {
       await db.prepare(
-        "UPDATE items SET qty = ?1, source_title = ?2 WHERE id = ?3",
-      ).bind(match.qty + item.qty, mergeSourceTitles(match.source_title, source?.title ?? null), match.id).run();
+        "UPDATE items SET name = ?1, qty = ?2, canonical_name = ?3, aisle = ?4, source_title = ?5 WHERE id = ?6",
+      ).bind(
+        mergeSourceNames(match.name, item.name), match.qty + item.qty, canonicalName, aisle,
+        mergeSourceTitles(match.source_title, source?.title ?? null), match.id,
+      ).run();
+    } else if (match && match.qty === null && item.qty === null) {
+      await db.prepare(
+        "UPDATE items SET name = ?1, canonical_name = ?2, aisle = ?3, source_title = ?4 WHERE id = ?5",
+      ).bind(
+        mergeSourceNames(match.name, item.name), canonicalName, aisle,
+        mergeSourceTitles(match.source_title, source?.title ?? null), match.id,
+      ).run();
     } else {
       await db.prepare(
-        `INSERT INTO items(name, qty, unit, aisle, source_kind, source_id, source_title, added_by)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
+        `INSERT INTO items(name, canonical_name, qty, unit, aisle, source_kind, source_id, source_title, added_by)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`,
       ).bind(
-        item.name, item.qty, item.unit, aisle, source?.kind ?? "manual",
+        item.name, canonicalName, item.qty, item.unit, aisle, source?.kind ?? "manual",
         source?.id ?? null, source?.title?.trim().slice(0, 200) ?? null, addedBy,
       ).run();
     }
@@ -142,7 +196,7 @@ const app = new Hono<{ Bindings: Env }>().basePath("/list");
 
 app.get("/api/items", async (c) => {
   const { results } = await c.env.LIST.prepare(
-    `SELECT id, name, qty, unit, aisle, checked_at, source_kind, source_id, source_title, added_at
+    `SELECT id, name, canonical_name, qty, unit, aisle, checked_at, source_kind, source_id, source_title, added_at
      FROM items ORDER BY checked_at IS NOT NULL, aisle, added_at DESC`,
   ).all<ItemRow>();
   return c.json({ items: results });

@@ -6,6 +6,7 @@ import "./app.css";
 type Item = {
   id: number;
   name: string;
+  canonical_name: string | null;
   qty: number | null;
   unit: string | null;
   aisle: string;
@@ -27,6 +28,16 @@ function quantity(item: Item): string {
   if (item.qty === null) return "";
   const qty = Number.isInteger(item.qty) ? String(item.qty) : String(Math.round(item.qty * 100) / 100);
   return `${qty}${item.unit ? ` ${item.unit}` : ""}`;
+}
+
+function shoppingName(item: Item): string {
+  return item.canonical_name?.trim() || item.name;
+}
+
+function sourceName(item: Item): string | null {
+  return shoppingName(item).toLocaleLowerCase() === item.name.trim().toLocaleLowerCase()
+    ? null
+    : item.name;
 }
 
 function App() {
@@ -110,7 +121,10 @@ function App() {
     }
     const text = [...byAisle.entries()].map(([aisle, rows]) => [
       aisle,
-      ...rows.map((row) => `- ${quantity(row)}${quantity(row) ? " " : ""}${row.name}${row.source_title ? ` (${row.source_title})` : ""}`),
+      ...rows.map((row) => {
+        const translated = sourceName(row) ? `${shoppingName(row)} / ${sourceName(row)}` : shoppingName(row);
+        return `- ${quantity(row)}${quantity(row) ? " " : ""}${translated}${row.source_title ? ` (${row.source_title})` : ""}`;
+      }),
     ].join("\n")).join("\n\n");
     await navigator.clipboard.writeText(text || "Shopping list is empty");
     setCopied(true);
@@ -152,8 +166,12 @@ function App() {
                 <button class={`item ${item.checked_at ? "checked" : ""}`} key={item.id} onClick={() => void toggle(item)}>
                   <span class="check">{item.checked_at ? "✓" : ""}</span>
                   <span class="item-copy">
-                    <span class="item-main"><strong>{item.name}</strong>{quantity(item) && <span>{quantity(item)}</span>}</span>
-                    {item.source_title && <small>from {item.source_title}</small>}
+                    <span class="item-main"><strong>{shoppingName(item)}</strong>{quantity(item) && <span>{quantity(item)}</span>}</span>
+                    {(sourceName(item) || item.source_title) && (
+                      <small>
+                        {[sourceName(item), item.source_title ? `from ${item.source_title}` : null].filter(Boolean).join(" · ")}
+                      </small>
+                    )}
                   </span>
                 </button>
               ))}

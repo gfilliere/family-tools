@@ -8,7 +8,7 @@ describe("normaliseDraft", () => {
     draft.title = "  Bread  ";
     draft.tags = [" baking ", "", " weekend"];
     draft.ingredients = [
-      { name: " flour ", qty: 200, unit: "g", original: "" },
+      { name: " Mehl ", canonicalName: " flour ", qty: 200, unit: "g", original: "" },
       { name: "", qty: null, unit: null, original: "" },
     ];
 
@@ -16,7 +16,7 @@ describe("normaliseDraft", () => {
       title: "Bread",
       tags: ["baking", "weekend"],
       ingredients: [
-        { name: "flour", qty: 200, unit: "g", original: "200 g flour" },
+        { name: "Mehl", canonicalName: "flour", qty: 200, unit: "g", original: "200 g Mehl" },
       ],
     });
   });

@@ -19,6 +19,7 @@ export function normaliseDraft(draft: RecipeDraft): RecipePayload {
         const name = ingredient.name.trim() || ingredient.original.trim();
         return {
           name,
+          canonicalName: ingredient.canonicalName?.trim() || null,
           qty: ingredient.qty,
           unit: ingredient.unit,
           original: ingredient.original.trim() || ingredientAmount({ ...ingredient, name }),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseAiResponse, recipeModelOptions } from "./importer";
+import { ingredientIdentityModelOptions, parseAiResponse, recipeModelOptions } from "./importer";
 
 describe("parseAiResponse", () => {
   it("accepts structured and JSON-string Workers AI responses", () => {
@@ -27,5 +27,15 @@ describe("recipeModelOptions", () => {
     expect(first.messages).toHaveLength(2);
     expect(retry.messages).toHaveLength(3);
     expect(retry.messages[1]?.content).toContain("previous response was empty or invalid");
+  });
+});
+
+describe("ingredientIdentityModelOptions", () => {
+  it("asks for exact multilingual source mappings and retries incomplete output", () => {
+    const first = ingredientIdentityModelOptions(["Zwiebeln", "Mehl"], 0);
+    const retry = ingredientIdentityModelOptions(["Zwiebeln", "Mehl"], 1);
+    expect(first.messages.at(-1)?.content).toContain('["Zwiebeln","Mehl"]');
+    expect(first.messages.at(-1)?.content).toContain("lower-case");
+    expect(retry.messages[1]?.content).toContain("one mapping for every input name");
   });
 });

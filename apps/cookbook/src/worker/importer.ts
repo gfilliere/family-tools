@@ -1,4 +1,10 @@
-import { aiRecipeJsonSchema, aiRecipeSchema, type RecipeInput } from "./schema";
+import {
+  aiRecipeJsonSchema,
+  aiRecipeSchema,
+  ingredientIdentityJsonSchema,
+  ingredientIdentitySchema,
+  type RecipeInput,
+} from "./schema";
 import { normaliseIngredientName, normaliseInstructions, parseAndNormaliseIngredient } from "./normalise";
 import { sanitiseRecipeTitle } from "./text";
 
@@ -109,22 +115,143 @@ async function saveFacts(db: D1Database, facts: { name: string; aisle: string; g
   ).bind(normaliseIngredientName(fact.name), fact.aisle, fact.gramsPerCup)));
 }
 
+interface IdentityInput {
+  name: string;
+  canonicalName?: string | null;
+}
+
+interface ResolvedIdentity {
+  sourceName: string;
+  canonicalName: string;
+  aisle?: string;
+  gramsPerCup?: number | null;
+}
+
+function cleanCanonicalName(value: string): string {
+  return normaliseIngredientName(value).slice(0, 160);
+}
+
+async function saveIdentities(db: D1Database, identities: ResolvedIdentity[]): Promise<void> {
+  const aliases = new Map<string, string>();
+  for (const identity of identities) {
+    const canonicalName = cleanCanonicalName(identity.canonicalName);
+    if (!canonicalName) continue;
+    aliases.set(normaliseIngredientName(identity.sourceName), canonicalName);
+    aliases.set(normaliseIngredientName(canonicalName), canonicalName);
+  }
+  if (aliases.size) {
+    await db.batch([...aliases].map(([alias, canonicalName]) => db.prepare(
+      `INSERT INTO ingredient_aliases(alias_normalised, canonical_name) VALUES (?1, ?2)
+       ON CONFLICT(alias_normalised) DO UPDATE SET canonical_name=excluded.canonical_name, updated_at=datetime('now')`,
+    ).bind(alias, canonicalName)));
+  }
+  await saveFacts(db, identities.flatMap((identity) => {
+    if (!identity.aisle) return [];
+    const fact = { aisle: identity.aisle, gramsPerCup: identity.gramsPerCup ?? null };
+    return [
+      { name: identity.sourceName, ...fact },
+      { name: identity.canonicalName, ...fact },
+    ];
+  }));
+}
+
+async function cachedCanonicalNames(db: D1Database, names: string[]): Promise<Map<string, string>> {
+  const aliases = [...new Set(names.map(normaliseIngredientName))];
+  if (!aliases.length) return new Map();
+  const results = await db.batch<{ canonical_name: string }>(aliases.map((alias) => db.prepare(
+    "SELECT canonical_name FROM ingredient_aliases WHERE alias_normalised = ?1",
+  ).bind(alias)));
+  const found = new Map<string, string>();
+  results.forEach((result, index) => {
+    const canonicalName = result.results[0]?.canonical_name;
+    const alias = aliases[index];
+    if (alias && canonicalName) found.set(alias, canonicalName);
+  });
+  return found;
+}
+
+export function ingredientIdentityModelOptions(names: string[], attempt: number) {
+  const prompt = `Resolve each source-language cooking ingredient to a concise English shopping-list identity. Preserve meaningful distinctions such as spring onion versus onion, but remove quantities, units, packaging, preparation instructions, and incidental adjectives. canonicalName must be a lower-case, normally singular English food name. Copy sourceName exactly from the input. Also return one allowed aisle and gramsPerCup only for a reliably known dry-volume density. Do not omit or invent ingredients.\n\n${JSON.stringify(names)}`;
+  return {
+    messages: [
+      { role: "system" as const, content: "You map multilingual cooking ingredients into the exact requested JSON schema." },
+      ...(attempt > 0 ? [{ role: "system" as const, content: "The previous response was invalid or incomplete. Return one mapping for every input name." }] : []),
+      { role: "user" as const, content: prompt },
+    ],
+    max_tokens: MAX_AI_OUTPUT_TOKENS,
+    temperature: 0.1,
+    response_format: { type: "json_schema" as const, json_schema: ingredientIdentityJsonSchema },
+  };
+}
+
+export async function resolveIngredientIdentities(env: Env, inputs: IdentityInput[]): Promise<string[]> {
+  const resolved = new Map<string, string>();
+  const supplied: ResolvedIdentity[] = [];
+  for (const input of inputs) {
+    const alias = normaliseIngredientName(input.name);
+    const canonicalName = input.canonicalName ? cleanCanonicalName(input.canonicalName) : "";
+    if (canonicalName) {
+      resolved.set(alias, canonicalName);
+      supplied.push({ sourceName: input.name, canonicalName });
+    }
+  }
+  await saveIdentities(env.COOKBOOK, supplied);
+
+  const unresolvedInputs = inputs.filter((input) => !resolved.has(normaliseIngredientName(input.name)));
+  const cached = await cachedCanonicalNames(env.COOKBOOK, unresolvedInputs.map((input) => input.name));
+  for (const [alias, canonicalName] of cached) resolved.set(alias, cleanCanonicalName(canonicalName));
+
+  const missingNames = [...new Map(unresolvedInputs
+    .filter((input) => !resolved.has(normaliseIngredientName(input.name)))
+    .map((input) => [normaliseIngredientName(input.name), input.name])).values()];
+
+  let modelIdentities: ResolvedIdentity[] = [];
+  if (missingNames.length) {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const result = await env.AI.run(env.RECIPE_MODEL, ingredientIdentityModelOptions(missingNames, attempt));
+        const parsed = ingredientIdentitySchema.parse(parseAiResponse(result));
+        const requested = new Set(missingNames.map(normaliseIngredientName));
+        modelIdentities = parsed.ingredients.filter((identity) => requested.has(normaliseIngredientName(identity.sourceName)));
+        if (new Set(modelIdentities.map((identity) => normaliseIngredientName(identity.sourceName))).size === requested.size) break;
+      } catch { modelIdentities = []; }
+    }
+    await saveIdentities(env.COOKBOOK, modelIdentities);
+    for (const identity of modelIdentities) {
+      resolved.set(normaliseIngredientName(identity.sourceName), cleanCanonicalName(identity.canonicalName));
+    }
+  }
+
+  return inputs.map((input) => resolved.get(normaliseIngredientName(input.name)) ?? cleanCanonicalName(input.name));
+}
+
 async function buildDraft(
-  db: D1Database,
+  env: Env,
   raw: {
     title: string;
     instructionsMd: string | null;
     cookMinutes: number | null;
     servings: number | null;
     imageUrl: string | null;
-    ingredients: { original: string; name?: string }[];
+    ingredients: { original: string; name?: string; canonicalName?: string }[];
   },
   sourceUrl: string | null,
   tier: "json-ld" | "ai" | "browser",
 ): Promise<RecipeInput & { importTier: string }> {
-  const ingredients = await Promise.all(raw.ingredients.map((ingredient) =>
-    parseAndNormaliseIngredient(db, ingredient.original, ingredient.name),
+  const preliminary = await Promise.all(raw.ingredients.map((ingredient) =>
+    parseAndNormaliseIngredient(env.COOKBOOK, ingredient.original, ingredient.name),
   ));
+  const canonicalNames = await resolveIngredientIdentities(env, preliminary.map((ingredient, index) => ({
+    name: ingredient.name,
+    canonicalName: raw.ingredients[index]?.canonicalName,
+  })));
+  const parsedIngredients = await Promise.all(raw.ingredients.map((ingredient, index) =>
+    parseAndNormaliseIngredient(env.COOKBOOK, ingredient.original, preliminary[index]?.name),
+  ));
+  const ingredients = parsedIngredients.map((ingredient, index) => ({
+    ...ingredient,
+    canonicalName: canonicalNames[index] ?? cleanCanonicalName(ingredient.name),
+  }));
   return {
     title: sanitiseRecipeTitle(raw.title),
     instructionsMd: raw.instructionsMd ? normaliseInstructions(raw.instructionsMd) : null,
@@ -141,14 +268,14 @@ async function buildDraft(
   };
 }
 
-async function fromJsonLd(db: D1Database, recipe: JsonObject, sourceUrl: string): Promise<(RecipeInput & { importTier: string }) | null> {
+async function fromJsonLd(env: Env, recipe: JsonObject, sourceUrl: string): Promise<(RecipeInput & { importTier: string }) | null> {
   const title = textValue(recipe.name ?? recipe.headline);
   const ingredientLines = Array.isArray(recipe.recipeIngredient)
     ? recipe.recipeIngredient.map(textValue).filter((value): value is string => Boolean(value))
     : [];
   if (!title || ingredientLines.length === 0) return null;
   const steps = instructionLines(recipe.recipeInstructions);
-  return buildDraft(db, {
+  return buildDraft(env, {
     title,
     ingredients: ingredientLines.map((original) => ({ original })),
     instructionsMd: steps.length ? steps.map((step, index) => `${index + 1}. ${step}`).join("\n\n") : null,
@@ -191,7 +318,7 @@ export function recipeModelOptions(prompt: string, attempt: number) {
 }
 
 async function extractWithAi(env: Env, markdown: string, sourceUrl: string | null, tier: "ai" | "browser"): Promise<RecipeInput & { importTier: string }> {
-  const prompt = `Extract one usable recipe from the Markdown. The ingredients array must contain every ingredient from the source and must never be empty when the source contains an ingredient list. For every ingredient, keep the source line verbatim in original and return a clean canonical name containing only the food identity: remove quantities, units, packaging, measurement notes, preparation instructions, and surrounding commentary. For example, "2 cups (standard measuring cup) uncooked short-grain white rice" has name "uncooked short-grain white rice". Return ingredient facts keyed by those clean names: one aisle from the allowed list and gramsPerCup only when a reliable dry-volume density is known. Instructions must be Markdown. Do not invent missing values.\n\n${markdown.slice(0, 180_000)}`;
+  const prompt = `Extract one usable recipe from the Markdown. The ingredients array must contain every ingredient from the source and must never be empty when the source contains an ingredient list. For every ingredient, keep the source line verbatim in original. name is a clean ingredient label in the recipe's source language. canonicalName is the equivalent concise, lower-case, normally singular English shopping-list identity. For both fields remove quantities, units, packaging, preparation instructions, measurement notes, and surrounding commentary, while preserving meaningful food distinctions. For example, "2 große Zwiebeln" has name "große Zwiebeln" and canonicalName "onion". Return ingredient facts keyed by the source-language clean names: one aisle from the allowed list and gramsPerCup only when a reliable dry-volume density is known. Instructions must be Markdown. Do not invent missing values.\n\n${markdown.slice(0, 180_000)}`;
   let parsed: ReturnType<typeof aiRecipeSchema.parse> | null = null;
   let lastError: unknown = null;
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -203,7 +330,7 @@ async function extractWithAi(env: Env, markdown: string, sourceUrl: string | nul
   }
   if (!parsed) throw new Error(`The recipe model could not produce a valid draft${lastError instanceof Error ? `: ${lastError.message}` : "."}`);
   await saveFacts(env.COOKBOOK, parsed.ingredientFacts);
-  return buildDraft(env.COOKBOOK, {
+  return buildDraft(env, {
     title: parsed.title,
     instructionsMd: parsed.instructionsMd,
     cookMinutes: parsed.cookMinutes,
@@ -242,7 +369,7 @@ export async function importRecipe(env: Env, input: { url?: string; text?: strin
   const html = await readLimited(response);
   const jsonLd = recipeFromJsonLd(html);
   if (jsonLd) {
-    const draft = await fromJsonLd(env.COOKBOOK, jsonLd, url.href);
+    const draft = await fromJsonLd(env, jsonLd, url.href);
     if (draft) return draft;
   }
 

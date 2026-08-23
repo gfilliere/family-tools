@@ -43,7 +43,10 @@ export function IngredientRow({
           required
           placeholder="Ingredient"
           value={ingredient.name}
-          onInput={(event) => onChange(index, { name: event.currentTarget.value })}
+          onInput={(event) => onChange(index, {
+            name: event.currentTarget.value,
+            canonicalName: null,
+          })}
         />
         <button
           type="button"
@@ -53,6 +56,14 @@ export function IngredientRow({
           ×
         </button>
       </div>
+      <input
+        class="canonical-name"
+        placeholder="Shopping name in English (used to merge items)"
+        value={ingredient.canonicalName ?? ""}
+        onInput={(event) => onChange(index, {
+          canonicalName: event.currentTarget.value || null,
+        })}
+      />
       <input
         class="original"
         required

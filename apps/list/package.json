@@ -11,6 +11,7 @@
     "build": "vite build",
     "deploy": "pnpm build && wrangler deploy",
     "migrate": "wrangler d1 migrations apply list --remote",
+    "test": "vitest run",
     "types": "wrangler types"
   },
   "dependencies": {
@@ -22,6 +23,7 @@
     "@preact/preset-vite": "^2.9.0",
     "concurrently": "^10.0.4",
     "vite": "^6.0.0",
+    "vitest": "^4.1.0",
     "wrangler": "^4.123.0"
   }
 }

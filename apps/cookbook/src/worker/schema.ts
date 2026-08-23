@@ -3,6 +3,7 @@ import { sanitiseRecipeTitle } from "./text";
 
 export const ingredientInputSchema = z.object({
   name: z.string().trim().min(1).max(160),
+  canonicalName: z.string().trim().min(1).max(160).nullable().optional(),
   qty: z.number().finite().positive().nullable(),
   unit: z.enum(["g", "ml", "tsp", "tbsp"]).nullable(),
   original: z.string().trim().min(1).max(500),
@@ -36,6 +37,7 @@ export const aiRecipeSchema = z.object({
   ingredients: z.array(z.object({
     original: z.string().trim().min(1).max(500),
     name: z.string().trim().min(1).max(160),
+    canonicalName: z.string().trim().min(1).max(160),
   })).min(1).max(300),
   ingredientFacts: z.array(z.object({
     name: z.string().trim().min(1).max(160),
@@ -59,8 +61,12 @@ export const aiRecipeJsonSchema = {
       items: {
         type: "object",
         additionalProperties: false,
-        properties: { original: { type: "string" }, name: { type: "string" } },
-        required: ["original", "name"],
+        properties: {
+          original: { type: "string" },
+          name: { type: "string" },
+          canonicalName: { type: "string" },
+        },
+        required: ["original", "name", "canonicalName"],
       },
     },
     ingredientFacts: {
@@ -78,4 +84,36 @@ export const aiRecipeJsonSchema = {
     },
   },
   required: ["title", "instructionsMd", "cookMinutes", "servings", "imageUrl", "ingredients", "ingredientFacts"],
+} as const;
+
+export const ingredientIdentitySchema = z.object({
+  ingredients: z.array(z.object({
+    sourceName: z.string().trim().min(1).max(160),
+    canonicalName: z.string().trim().min(1).max(160),
+    aisle: z.enum(["Produce", "Dairy & Eggs", "Meat & Seafood", "Bakery", "Pantry", "Spices", "Frozen", "Beverages", "Household", "Other"]),
+    gramsPerCup: z.number().positive().max(2_000).nullable(),
+  })).min(1).max(300),
+});
+
+export const ingredientIdentityJsonSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    ingredients: {
+      type: "array",
+      minItems: 1,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          sourceName: { type: "string" },
+          canonicalName: { type: "string" },
+          aisle: { type: "string", enum: ["Produce", "Dairy & Eggs", "Meat & Seafood", "Bakery", "Pantry", "Spices", "Frozen", "Beverages", "Household", "Other"] },
+          gramsPerCup: { type: ["number", "null"] },
+        },
+        required: ["sourceName", "canonicalName", "aisle", "gramsPerCup"],
+      },
+    },
+  },
+  required: ["ingredients"],
 } as const;

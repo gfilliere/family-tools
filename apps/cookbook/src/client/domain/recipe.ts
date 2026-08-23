@@ -4,6 +4,7 @@ export type IngredientUnit = "g" | "ml" | "tsp" | "tbsp";
 export interface Ingredient {
   id?: number;
   name: string;
+  canonicalName?: string | null;
   qty: number | null;
   unit: IngredientUnit | null;
   original: string;
@@ -59,6 +60,7 @@ export type RecipePayload = Omit<RecipeDraft, "id" | "importTier">;
 
 const EMPTY_INGREDIENT: Ingredient = {
   name: "",
+  canonicalName: null,
   qty: null,
   unit: null,
   original: "",

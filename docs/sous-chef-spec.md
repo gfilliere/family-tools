@@ -115,7 +115,8 @@ ingredients(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   recipe_id INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
   position INTEGER NOT NULL,       -- preserves recipe order
-  name TEXT NOT NULL,
+  name TEXT NOT NULL,              -- clean label in the recipe's source language
+  canonical_name TEXT,             -- lower-case English shopping identity
   qty REAL,                        -- normalised, metric
   unit TEXT,                       -- 'g' | 'ml' | 'tsp' | 'tbsp' | null (countable)
   original TEXT NOT NULL,          -- the source line, verbatim
@@ -250,7 +251,8 @@ the cookbook.
 ```sql
 items(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
+  name TEXT NOT NULL,              -- source label as supplied
+  canonical_name TEXT NOT NULL,    -- language-independent merge/display identity
   qty REAL,
   unit TEXT,
   aisle TEXT,                      -- see §6.2
@@ -269,15 +271,21 @@ edited or deleted.
 
 ### 4.2 Aggregation rules — deliberately conservative
 
-**Sum two lines only when the normalised name and the unit match exactly.**
+**Sum two measured lines only when the canonical name and unit match exactly.**
 `2 onions` + `3 onions` = `5 onions`. Otherwise keep both lines.
+
+Collapse two unmeasured lines with the same canonical identity into one line and
+merge their source titles. This keeps `Salz` and `salt` from becoming two
+quantity-less rows without pretending to know how much is required.
 
 **Never reconcile across units.** Do not attempt `200 g flour` + `2 cups flour`.
 That is the unit-normalisation problem again, and getting it wrong in a shop is
 worse than reading two lines.
 
-Normalise names for comparison only — lowercase, trim, strip a trailing plural
-`s`, collapse whitespace. Store the display name as given.
+Resolve source names through a cached alias table (`Zwiebeln` → `onion`) and
+normalise the canonical identity for comparison only. Store the source label as
+given, and show it beneath the English shopping identity when the two differ.
+Corrections made in the recipe editor update the alias cache.
 
 Because every line keeps its source, unmerged duplicates read as informative
 rather than broken. Provenance in the aisle beats a merged total.

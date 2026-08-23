@@ -11,7 +11,7 @@
     "dev": "pnpm --filter shell dev",
     "build": "pnpm -r build",
     "check": "tsc --build && oxlint . && pnpm test",
-    "test": "pnpm --filter cookbook test",
+    "test": "pnpm -r --if-present test",
     "typegen": "pnpm -r run types"
   },
   "devDependencies": {
