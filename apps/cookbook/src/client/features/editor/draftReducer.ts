@@ -14,7 +14,10 @@ export function draftReducer(draft: RecipeDraft, action: DraftAction): RecipeDra
     case "fieldChanged":
       return { ...draft, [action.field]: action.value };
     case "tagsChanged":
-      return { ...draft, tags: action.value.split(",") };
+      return {
+        ...draft,
+        tags: action.value.split(",").map((tag) => tag.trimStart()),
+      };
     case "ingredientAdded":
       return {
         ...draft,
