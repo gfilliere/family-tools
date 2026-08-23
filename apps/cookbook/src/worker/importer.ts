@@ -2,6 +2,7 @@ import { aiRecipeJsonSchema, aiRecipeSchema, type RecipeInput } from "./schema";
 import { normaliseIngredientName, normaliseInstructions, parseAndNormaliseIngredient } from "./normalise";
 
 const MAX_DOCUMENT_BYTES = 3_000_000;
+const MAX_AI_OUTPUT_TOKENS = 4_096;
 
 type JsonObject = Record<string, unknown>;
 
@@ -166,22 +167,28 @@ function aiResponse(result: unknown): unknown {
   if (!isObject(result)) return result;
   const response = result.response;
   if (typeof response === "string") {
-    try { return JSON.parse(response); } catch { return null; }
+    if (!response.trim()) throw new Error("Workers AI returned an empty structured response.");
+    try { return JSON.parse(response); }
+    catch { throw new Error("Workers AI returned incomplete or invalid JSON."); }
   }
+  if (response === null || response === undefined) throw new Error("Workers AI returned an empty structured response.");
   return response;
 }
 
 async function extractWithAi(env: Env, markdown: string, sourceUrl: string | null, tier: "ai" | "browser"): Promise<RecipeInput & { importTier: string }> {
-  const prompt = `Extract one usable recipe from the Markdown. For every ingredient, keep the source line verbatim in original and return a clean canonical name containing only the food identity: remove quantities, units, packaging, measurement notes, preparation instructions, and surrounding commentary. For example, "2 cups (standard measuring cup) uncooked short-grain white rice" has name "uncooked short-grain white rice". Return ingredient facts keyed by those clean names: one aisle from the allowed list and gramsPerCup only when a reliable dry-volume density is known. Instructions must be Markdown. Do not invent missing values.\n\n${markdown.slice(0, 180_000)}`;
+  const prompt = `Extract one usable recipe from the Markdown. The ingredients array must contain every ingredient from the source and must never be empty when the source contains an ingredient list. For every ingredient, keep the source line verbatim in original and return a clean canonical name containing only the food identity: remove quantities, units, packaging, measurement notes, preparation instructions, and surrounding commentary. For example, "2 cups (standard measuring cup) uncooked short-grain white rice" has name "uncooked short-grain white rice". Return ingredient facts keyed by those clean names: one aisle from the allowed list and gramsPerCup only when a reliable dry-volume density is known. Instructions must be Markdown. Do not invent missing values.\n\n${markdown.slice(0, 180_000)}`;
   let parsed: ReturnType<typeof aiRecipeSchema.parse> | null = null;
   let lastError: unknown = null;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       const result = await env.AI.run(env.RECIPE_MODEL, {
         messages: [
-          { role: "system", content: "You extract cooking recipes into the exact requested JSON schema." },
+          { role: "system", content: "You extract cooking recipes into the exact requested JSON schema. Always return at least one ingredient when the source contains ingredients." },
+          ...(attempt > 0 ? [{ role: "system" as const, content: "The previous response was empty or invalid. Re-read the source, populate every required field, and include all source ingredients." }] : []),
           { role: "user", content: prompt },
         ],
+        max_tokens: MAX_AI_OUTPUT_TOKENS,
+        temperature: 0.2,
         response_format: { type: "json_schema", json_schema: aiRecipeJsonSchema },
       });
       parsed = aiRecipeSchema.parse(aiResponse(result));
