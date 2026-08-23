@@ -35,7 +35,7 @@ export function CatalogToolbar({
         <button>Search</button>
       </form>
       <div class="sort-row">
-        <span>{count} recipes</span>
+        <span>{count} {count === 1 ? "recipe" : "recipes"}</span>
         <label>
           Sort
           <select
