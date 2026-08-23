@@ -126,6 +126,9 @@ importers:
       vite:
         specifier: ^6.0.0
         version: 6.4.3
+      vitest:
+        specifier: ^4.1.0
+        version: 4.1.11(vite@6.4.3)
       wrangler:
         specifier: ^4.123.0
         version: 4.123.0

@@ -4,7 +4,7 @@ const FRACTIONS: Record<string, number> = {
   "¼": 0.25, "½": 0.5, "¾": 0.75, "⅓": 1 / 3, "⅔": 2 / 3, "⅛": 0.125, "⅜": 0.375, "⅝": 0.625, "⅞": 0.875,
 };
 
-const UNIT_PATTERN = "fl\\.?\\s*oz|fluid ounces?|tablespoons?|tbsp\\.?|teaspoons?|tsp\\.?|cups?|ounces?|oz\\.?|pounds?|lbs?\\.?|kilograms?|kg|grams?|g|millilit(?:er|re)s?|ml|lit(?:er|re)s?|l|EL|TL";
+const UNIT_PATTERN = "fl\\.?\\s*oz|fluid ounces?|tablespoons?|tbsp\\.?|esslöffel|teaspoons?|tsp\\.?|teelöffel|cups?|ounces?|oz\\.?|pounds?|lbs?\\.?|kilograms?|kilogramm|kg|grams?|gramm|g|millilit(?:er|re)s?|ml|lit(?:er|re)s?|l|päckchen|packungen?|pakete?|dosen?|gläser|glas|bünde|bund|stücke?|EL|TL";
 
 export function normaliseIngredientName(value: string): string {
   return value.toLocaleLowerCase().trim().replace(/\s+/g, " ").replace(/s$/, "");
@@ -31,18 +31,19 @@ function roundKitchen(value: number, kind: "g" | "ml"): number {
   return Math.max(step, Math.round(value / step) * step);
 }
 
-function canonicalUnit(raw: string): string {
+function canonicalUnit(raw: string): string | null {
   const value = raw.toLocaleLowerCase().replaceAll(".", "").trim();
   if (["oz", "ounce", "ounces"].includes(value)) return "oz";
   if (["lb", "lbs", "pound", "pounds"].includes(value)) return "lb";
   if (["cup", "cups"].includes(value)) return "cup";
   if (["fl oz", "fluid ounce", "fluid ounces"].includes(value)) return "fl oz";
-  if (["tablespoon", "tablespoons", "tbsp", "el"].includes(value)) return "tbsp";
-  if (["teaspoon", "teaspoons", "tsp", "tl"].includes(value)) return "tsp";
-  if (["kilogram", "kilograms", "kg"].includes(value)) return "kg";
-  if (["gram", "grams", "g"].includes(value)) return "g";
+  if (["tablespoon", "tablespoons", "tbsp", "esslöffel", "el"].includes(value)) return "tbsp";
+  if (["teaspoon", "teaspoons", "tsp", "teelöffel", "tl"].includes(value)) return "tsp";
+  if (["kilogram", "kilograms", "kilogramm", "kg"].includes(value)) return "kg";
+  if (["gram", "grams", "gramm", "g"].includes(value)) return "g";
   if (["milliliter", "milliliters", "millilitre", "millilitres", "ml"].includes(value)) return "ml";
   if (["liter", "liters", "litre", "litres", "l"].includes(value)) return "l";
+  if (/^(?:päckchen|packung(?:en)?|paket(?:e)?|dose(?:n)?|glas|gläser|bund|bünde|stück(?:e)?)$/.test(value)) return null;
   return value;
 }
 
@@ -55,19 +56,29 @@ function cleanParsedName(value: string): string {
     .slice(0, 160);
 }
 
+export function parseIngredientLine(original: string, preferredName?: string): {
+  qty: number | null;
+  unit: string | null;
+  name: string;
+} {
+  const clean = original.trim();
+  if (!clean) throw new Error("An imported ingredient was empty.");
+  const match = new RegExp(`^([\\d\\s.,/¼½¾⅓⅔⅛⅜⅝⅞]+)?\\s*(?:(${UNIT_PATTERN})(?=\\s|$))?\\s*(?:of\\s+)?(.+)$`, "i").exec(clean);
+  const qty = match?.[1] ? parseNumber(match[1]) : null;
+  const unit = match?.[2] ? canonicalUnit(match[2]) : null;
+  const parsedName = cleanParsedName(match?.[3] ?? clean);
+  const name = preferredName ? cleanParsedName(preferredName) : parsedName;
+  if (!name) throw new Error(`Could not identify the ingredient in “${clean}”.`);
+  return { qty, unit, name };
+}
+
 export async function parseAndNormaliseIngredient(
   db: D1Database,
   original: string,
   preferredName?: string,
 ): Promise<IngredientInput> {
   const clean = original.trim();
-  if (!clean) throw new Error("An imported ingredient was empty.");
-  const match = new RegExp(`^([\\d\\s.,/¼½¾⅓⅔⅛⅜⅝⅞]+)?\\s*(?:(${UNIT_PATTERN})(?=\\s|$))?\\s*(?:of\\s+)?(.+)$`, "i").exec(clean);
-  const qty = match?.[1] ? parseNumber(match[1]) : null;
-  const rawUnit = match?.[2] ? canonicalUnit(match[2]) : null;
-  const parsedName = cleanParsedName(match?.[3] ?? clean);
-  const name = preferredName ? cleanParsedName(preferredName) : parsedName;
-  if (!name) throw new Error(`Could not identify the ingredient in “${clean}”.`);
+  const { qty, unit: rawUnit, name } = parseIngredientLine(original, preferredName);
   const fact = await db.prepare(
     "SELECT aisle, grams_per_cup FROM ingredient_facts WHERE name_normalised = ?1",
   ).bind(normaliseIngredientName(name)).first<{ aisle: string | null; grams_per_cup: number | null }>();

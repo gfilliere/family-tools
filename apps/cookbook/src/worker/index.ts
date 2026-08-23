@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { userEmail } from "@family-tools/ui";
-import { importRecipe } from "./importer";
+import { importRecipe, resolveIngredientIdentities } from "./importer";
 import { recipeInputSchema, type RecipeInput } from "./schema";
 
 interface RecipeRow {
@@ -24,6 +24,7 @@ interface IngredientRow {
   recipe_id: number;
   position: number;
   name: string;
+  canonical_name: string | null;
   qty: number | null;
   unit: "g" | "ml" | "tsp" | "tbsp" | null;
   original: string;
@@ -32,7 +33,7 @@ interface IngredientRow {
 
 interface ShoppingListBinding {
   addItems(
-    items: { name: string; qty: number | null; unit: string | null }[],
+    items: { name: string; canonicalName: string; qty: number | null; unit: string | null }[],
     source: { kind: "recipe"; id: number; title: string },
   ): Promise<{ added: number }>;
 }
@@ -58,7 +59,7 @@ function apiRecipe(row: RecipeRow) {
 function apiIngredient(row: IngredientRow) {
   return {
     id: row.id, name: row.name, qty: row.qty, unit: row.unit,
-    original: row.original, conversionNote: row.conversion_note,
+    canonicalName: row.canonical_name, original: row.original, conversionNote: row.conversion_note,
   };
 }
 
@@ -116,14 +117,28 @@ async function replaceChildren(db: D1Database, id: number, recipe: RecipeInput):
     db.prepare("DELETE FROM ingredients WHERE recipe_id = ?1").bind(id),
     db.prepare("DELETE FROM tags WHERE recipe_id = ?1").bind(id),
     ...recipe.ingredients.map((ingredient, index) => db.prepare(
-      `INSERT INTO ingredients(recipe_id, position, name, qty, unit, original, conversion_note)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`,
-    ).bind(id, index, ingredient.name, ingredient.qty, ingredient.unit, ingredient.original, ingredient.conversionNote ?? null)),
+      `INSERT INTO ingredients(recipe_id, position, name, canonical_name, qty, unit, original, conversion_note)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
+    ).bind(
+      id, index, ingredient.name, ingredient.canonicalName ?? null, ingredient.qty,
+      ingredient.unit, ingredient.original, ingredient.conversionNote ?? null,
+    )),
     ...[...new Set(recipe.tags.map((tag) => tag.toLocaleLowerCase()))].map((tag) => db.prepare(
       "INSERT INTO tags(recipe_id, tag) VALUES (?1, ?2)",
     ).bind(id, tag)),
   ];
   await db.batch(statements);
+}
+
+async function resolveRecipeIdentities(env: Env, recipe: RecipeInput): Promise<RecipeInput> {
+  const canonicalNames = await resolveIngredientIdentities(env, recipe.ingredients);
+  return {
+    ...recipe,
+    ingredients: recipe.ingredients.map((ingredient, index) => ({
+      ...ingredient,
+      canonicalName: canonicalNames[index] ?? ingredient.name,
+    })),
+  };
 }
 
 const app = new Hono<{ Bindings: Env }>().basePath("/cookbook");
@@ -161,7 +176,7 @@ app.post("/api/recipes", async (c) => {
   const parsed = await parseRecipeBody(c.req.raw);
   if (!parsed.data) return c.json({ error: parsed.error }, 400);
   await foreignKeys(c.env.COOKBOOK);
-  const recipe = parsed.data;
+  const recipe = await resolveRecipeIdentities(c.env, parsed.data);
   const created = await c.env.COOKBOOK.prepare(
     `INSERT INTO recipes(title, instructions_md, cook_minutes, servings, difficulty, rating, source_url, image_url, notes, created_by)
      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)`,
@@ -187,7 +202,7 @@ app.patch("/api/recipes/:id", async (c) => {
   const parsed = await parseRecipeBody(c.req.raw, existing);
   if (!parsed.data) return c.json({ error: parsed.error }, 400);
   await foreignKeys(c.env.COOKBOOK);
-  const recipe = parsed.data;
+  const recipe = await resolveRecipeIdentities(c.env, parsed.data);
   await c.env.COOKBOOK.prepare(
     `UPDATE recipes SET title=?1, instructions_md=?2, cook_minutes=?3, servings=?4, difficulty=?5,
        rating=?6, source_url=?7, image_url=?8, notes=?9 WHERE id=?10`,
@@ -220,11 +235,25 @@ app.post("/api/recipes/:id/to-list", async (c) => {
   if (!Number.isInteger(id) || id < 1) return c.json({ error: "Invalid recipe id." }, 400);
   const recipe = await fullRecipe(c.env.COOKBOOK, id);
   if (!recipe) return c.json({ error: "Recipe not found." }, 404);
+  const canonicalNames = await resolveIngredientIdentities(c.env, recipe.ingredients);
+  const identityUpdates = recipe.ingredients.flatMap((ingredient, index) => {
+    const canonicalName = canonicalNames[index];
+    if (!canonicalName || canonicalName === ingredient.canonicalName) return [];
+    return [c.env.COOKBOOK.prepare(
+      "UPDATE ingredients SET canonical_name = ?1 WHERE id = ?2",
+    ).bind(canonicalName, ingredient.id)];
+  });
+  if (identityUpdates.length) await c.env.COOKBOOK.batch(identityUpdates);
   // Wrangler currently generates a generic Service for named entrypoints in a
   // sibling config, so keep the RPC contract explicit and colocated with use.
   const listApp = c.env.LIST_APP as typeof c.env.LIST_APP & ShoppingListBinding;
   const result = await listApp.addItems(
-    recipe.ingredients.map((ingredient) => ({ name: ingredient.name, qty: ingredient.qty, unit: ingredient.unit })),
+    recipe.ingredients.map((ingredient, index) => ({
+      name: ingredient.name,
+      canonicalName: canonicalNames[index] ?? ingredient.name,
+      qty: ingredient.qty,
+      unit: ingredient.unit,
+    })),
     { kind: "recipe", id, title: recipe.title },
   );
   return c.json(result);
