@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { sanitiseRecipeTitle } from "./text";
 
 export const ingredientInputSchema = z.object({
   name: z.string().trim().min(1).max(160),
@@ -10,7 +11,7 @@ export const ingredientInputSchema = z.object({
 });
 
 export const recipeInputSchema = z.object({
-  title: z.string().trim().min(1).max(200),
+  title: z.string().max(1_000).transform(sanitiseRecipeTitle).pipe(z.string().min(1).max(200)),
   instructionsMd: z.string().trim().max(50_000).nullable().optional(),
   cookMinutes: z.number().int().min(0).max(10_080).nullable().optional(),
   servings: z.number().int().positive().max(1_000).nullable().optional(),

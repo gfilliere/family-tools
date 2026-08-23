@@ -1,5 +1,6 @@
 import { aiRecipeJsonSchema, aiRecipeSchema, type RecipeInput } from "./schema";
 import { normaliseIngredientName, normaliseInstructions, parseAndNormaliseIngredient } from "./normalise";
+import { sanitiseRecipeTitle } from "./text";
 
 const MAX_DOCUMENT_BYTES = 3_000_000;
 const MAX_AI_OUTPUT_TOKENS = 4_096;
@@ -125,7 +126,7 @@ async function buildDraft(
     parseAndNormaliseIngredient(db, ingredient.original, ingredient.name),
   ));
   return {
-    title: raw.title,
+    title: sanitiseRecipeTitle(raw.title),
     instructionsMd: raw.instructionsMd ? normaliseInstructions(raw.instructionsMd) : null,
     cookMinutes: raw.cookMinutes,
     servings: raw.servings,
