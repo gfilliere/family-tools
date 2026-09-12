@@ -15,6 +15,7 @@
     "types": "wrangler types"
   },
   "dependencies": {
+    "@family-tools/pantry": "workspace:*",
     "@family-tools/ui": "workspace:*",
     "hono": "^4.6.0",
     "marked": "^16.2.1",

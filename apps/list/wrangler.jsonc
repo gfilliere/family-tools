@@ -24,5 +24,10 @@
       "database_id": "03506466-8777-4283-9ea3-d8936ef59951"
     }
   ],
+  // Only consulted for ingredient names the shared catalog does not know.
+  "ai": { "binding": "AI", "remote": true },
+  "vars": {
+    "INGREDIENT_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+  },
   "observability": { "enabled": true }
 }

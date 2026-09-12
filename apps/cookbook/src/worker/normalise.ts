@@ -1,50 +1,17 @@
 import type { IngredientInput } from "./schema";
 
-const FRACTIONS: Record<string, number> = {
-  "¼": 0.25, "½": 0.5, "¾": 0.75, "⅓": 1 / 3, "⅔": 2 / 3, "⅛": 0.125, "⅜": 0.375, "⅝": 0.625, "⅞": 0.875,
-};
-
-const UNIT_PATTERN = "fl\\.?\\s*oz|fluid ounces?|tablespoons?|tbsp\\.?|esslöffel|teaspoons?|tsp\\.?|teelöffel|cups?|ounces?|oz\\.?|pounds?|lbs?\\.?|kilograms?|kilogramm|kg|grams?|gramm|g|millilit(?:er|re)s?|ml|lit(?:er|re)s?|l|päckchen|packungen?|pakete?|dosen?|gläser|glas|bünde|bund|stücke?|EL|TL";
+import {
+  isMassUnit, isVolumeUnit, matcher, parseIngredientLine as parsePantryLine, toGrams, toMillilitres,
+  type RecipeUnit,
+} from "@family-tools/pantry";
 
 export function normaliseIngredientName(value: string): string {
   return value.toLocaleLowerCase().trim().replace(/\s+/g, " ").replace(/s$/, "");
 }
 
-function parseNumber(raw: string): number | null {
-  const text = raw.trim().replace(",", ".");
-  let total = 0;
-  let found = false;
-  for (const token of text.split(/\s+/)) {
-    if (token in FRACTIONS) { total += FRACTIONS[token] ?? 0; found = true; continue; }
-    const mixed = /^(\d+)([¼½¾⅓⅔⅛⅜⅝⅞])$/.exec(token);
-    if (mixed) { total += Number(mixed[1]) + (FRACTIONS[mixed[2] ?? ""] ?? 0); found = true; continue; }
-    const fraction = /^(\d+)\/(\d+)$/.exec(token);
-    if (fraction && Number(fraction[2])) { total += Number(fraction[1]) / Number(fraction[2]); found = true; continue; }
-    const numeric = Number(token);
-    if (Number.isFinite(numeric)) { total += numeric; found = true; }
-  }
-  return found ? total : null;
-}
-
 function roundKitchen(value: number, kind: "g" | "ml"): number {
   const step = kind === "g" && value >= 100 ? 10 : 5;
   return Math.max(step, Math.round(value / step) * step);
-}
-
-function canonicalUnit(raw: string): string | null {
-  const value = raw.toLocaleLowerCase().replaceAll(".", "").trim();
-  if (["oz", "ounce", "ounces"].includes(value)) return "oz";
-  if (["lb", "lbs", "pound", "pounds"].includes(value)) return "lb";
-  if (["cup", "cups"].includes(value)) return "cup";
-  if (["fl oz", "fluid ounce", "fluid ounces"].includes(value)) return "fl oz";
-  if (["tablespoon", "tablespoons", "tbsp", "esslöffel", "el"].includes(value)) return "tbsp";
-  if (["teaspoon", "teaspoons", "tsp", "teelöffel", "tl"].includes(value)) return "tsp";
-  if (["kilogram", "kilograms", "kilogramm", "kg"].includes(value)) return "kg";
-  if (["gram", "grams", "gramm", "g"].includes(value)) return "g";
-  if (["milliliter", "milliliters", "millilitre", "millilitres", "ml"].includes(value)) return "ml";
-  if (["liter", "liters", "litre", "litres", "l"].includes(value)) return "l";
-  if (/^(?:päckchen|packung(?:en)?|paket(?:e)?|dose(?:n)?|glas|gläser|bund|bünde|stück(?:e)?)$/.test(value)) return null;
-  return value;
 }
 
 function cleanParsedName(value: string): string {
@@ -56,21 +23,25 @@ function cleanParsedName(value: string): string {
     .slice(0, 160);
 }
 
+/**
+ * Quantity, unit and name of one recipe line, using the shared pantry parser.
+ * Package units (Päckchen, Bund, can, clove) become a bare count: the recipe row stores metric or a count only.
+ */
 export function parseIngredientLine(original: string, preferredName?: string): {
   qty: number | null;
-  unit: string | null;
+  unit: RecipeUnit | null;
   name: string;
 } {
   const clean = original.trim();
   if (!clean) throw new Error("An imported ingredient was empty.");
-  const match = new RegExp(`^([\\d\\s.,/¼½¾⅓⅔⅛⅜⅝⅞]+)?\\s*(?:(${UNIT_PATTERN})(?=\\s|$))?\\s*(?:of\\s+)?(.+)$`, "i").exec(clean);
-  const qty = match?.[1] ? parseNumber(match[1]) : null;
-  const unit = match?.[2] ? canonicalUnit(match[2]) : null;
-  const parsedName = cleanParsedName(match?.[3] ?? clean);
-  const name = preferredName ? cleanParsedName(preferredName) : parsedName;
+  const parsed = parsePantryLine(clean);
+  const name = preferredName ? cleanParsedName(preferredName) : cleanParsedName(parsed.name);
   if (!name) throw new Error(`Could not identify the ingredient in “${clean}”.`);
-  return { qty, unit, name };
+  const unit = parsed.unit && (isMassUnit(parsed.unit) || isVolumeUnit(parsed.unit)) ? parsed.unit : null;
+  return { qty: parsed.qty, unit, name };
 }
+
+const ML_PER_CUP = 236.588;
 
 export async function parseAndNormaliseIngredient(
   db: D1Database,
@@ -79,37 +50,43 @@ export async function parseAndNormaliseIngredient(
 ): Promise<IngredientInput> {
   const clean = original.trim();
   const { qty, unit: rawUnit, name } = parseIngredientLine(original, preferredName);
+  const entry = matcher.resolveName(name)[0]?.entry ?? null;
   const fact = await db.prepare(
     "SELECT aisle, grams_per_cup FROM ingredient_facts WHERE name_normalised = ?1",
   ).bind(normaliseIngredientName(name)).first<{ aisle: string | null; grams_per_cup: number | null }>();
+  const aisle = entry?.aisle ?? fact?.aisle ?? null;
+  const canonicalName = entry && !entry.generic ? entry.name : undefined;
+  const base = { name, original: clean, aisle, ...(canonicalName ? { canonicalName } : {}) };
 
-  if (qty === null || rawUnit === null) return { name, qty, unit: null, original: clean, aisle: fact?.aisle ?? null };
-  if (rawUnit === "g") return { name, qty, unit: "g", original: clean, aisle: fact?.aisle ?? null };
-  if (rawUnit === "kg") return { name, qty: roundKitchen(qty * 1_000, "g"), unit: "g", original: clean, conversionNote: "converted from kilograms", aisle: fact?.aisle ?? null };
-  if (rawUnit === "oz") return { name, qty: roundKitchen(qty * 28.3495, "g"), unit: "g", original: clean, conversionNote: "converted from ounces", aisle: fact?.aisle ?? null };
-  if (rawUnit === "lb") return { name, qty: roundKitchen(qty * 453.592, "g"), unit: "g", original: clean, conversionNote: "converted from pounds", aisle: fact?.aisle ?? null };
-  if (rawUnit === "ml") return { name, qty, unit: "ml", original: clean, aisle: fact?.aisle ?? null };
-  if (rawUnit === "l") return { name, qty: roundKitchen(qty * 1_000, "ml"), unit: "ml", original: clean, conversionNote: "converted from litres", aisle: fact?.aisle ?? null };
+  if (qty === null || rawUnit === null) return { ...base, qty, unit: null };
+  const grams = toGrams({ qty, unit: rawUnit });
+  if (grams !== null) {
+    return rawUnit === "g"
+      ? { ...base, qty, unit: "g" }
+      : { ...base, qty: roundKitchen(grams, "g"), unit: "g", conversionNote: `converted from ${rawUnit === "kg" ? "kilograms" : rawUnit === "oz" ? "ounces" : "pounds"}` };
+  }
+  const ml = toMillilitres({ qty, unit: rawUnit });
+  if (ml === null) return { ...base, qty, unit: null };
+  if (rawUnit === "ml") return { ...base, qty, unit: "ml" };
+  if (rawUnit === "l") return { ...base, qty: roundKitchen(ml, "ml"), unit: "ml", conversionNote: "converted from litres" };
 
-  const mlPerUnit = rawUnit === "cup" ? 236.588 : rawUnit === "fl oz" ? 29.574 : rawUnit === "tbsp" ? 14.787 : 4.929;
-  if (["cup", "tbsp", "tsp"].includes(rawUnit) && fact?.grams_per_cup) {
-    const grams = qty * (mlPerUnit / 236.588) * fact.grams_per_cup;
+  // Cups and spoons of a dry ingredient: weigh them when a density is known.
+  const gramsPerMl = entry?.density ?? (fact?.grams_per_cup ? fact.grams_per_cup / ML_PER_CUP : null);
+  const isSpoonOrCup = rawUnit === "cup" || rawUnit === "tbsp" || rawUnit === "tsp";
+  if (isSpoonOrCup && gramsPerMl && (entry?.measure === "g" || !entry)) {
+    const unitLabel = `${rawUnit}${qty === 1 ? "" : "s"}`;
     return {
-      name,
-      qty: roundKitchen(grams, "g"),
+      ...base,
+      qty: roundKitchen(ml * gramsPerMl, "g"),
       unit: "g",
-      original: clean,
-      conversionNote: `from ${qty} ${rawUnit}${qty === 1 ? "" : "s"}; assumed ${fact.grams_per_cup} g/cup for ${name}`,
-      aisle: fact.aisle,
+      conversionNote: `from ${qty} ${unitLabel}; assumed ${Math.round(gramsPerMl * ML_PER_CUP)} g/cup for ${name}`,
     };
   }
   return {
-    name,
-    qty: roundKitchen(qty * mlPerUnit, "ml"),
+    ...base,
+    qty: roundKitchen(ml, "ml"),
     unit: "ml",
-    original: clean,
-    conversionNote: rawUnit === "cup" ? "volume converted to ml; no reliable density available" : `converted from ${rawUnit}`,
-    aisle: fact?.aisle ?? null,
+    conversionNote: rawUnit === "cup" && !gramsPerMl ? "volume converted to ml; no reliable density available" : `converted from ${rawUnit === "floz" ? "fl oz" : rawUnit}`,
   };
 }
 
