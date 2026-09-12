@@ -1,5 +1,5 @@
 import {
-  CATALOG, CATALOG_BY_ID, Matcher, contentTokens, isAisle, isMassUnit, isVolumeUnit, normalise, parseIngredientLine,
+  CATALOG, CATALOG_BY_ID, Matcher, isAisle, isMassUnit, isVolumeUnit, normalise, parseIngredientLine,
   rebindLine, resolveLine, singular,
   type Aisle, type CatalogEntry, type Measure, type RecipeUnit, type ResolvedLine,
 } from "@family-tools/pantry";
@@ -49,11 +49,14 @@ export interface NewIngredient {
   pieceUnit: string | null;
 }
 
-/** Key used for learned aliases: meaningful words, singular, lower-case. */
+/**
+ * Key used for learned aliases: the spelling with amounts and trailing prep removed, every remaining
+ * word kept, singular, lower-case. Keeping qualifiers is deliberate: a correction for "grilled chicken"
+ * must not redirect "whole chicken".
+ */
 export function aliasKey(value: string): string {
-  const tokens = contentTokens(value);
-  const chosen = tokens.length ? tokens : normalise(value).split(" ").filter(Boolean);
-  return chosen.map(singular).join(" ");
+  const cleaned = parseIngredientLine(value).name || value;
+  return normalise(cleaned).split(" ").filter(Boolean).map(singular).join(" ");
 }
 
 export function slugify(value: string): string {

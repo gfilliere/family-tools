@@ -58,6 +58,13 @@ describe("Knowledge.resolve", () => {
     expect(line?.entry?.id).toBe("spring-onion");
   });
 
+  it("learns a correction for the spelling only, not for the whole ingredient", async () => {
+    const knowledge = await Knowledge.load(fakeDb());
+    await knowledge.learnAlias("grilled chicken, cubed or shredded", "chicken-breast");
+    expect(knowledge.resolve({ name: "grilled chicken, cubed or shredded", original: "1 1/2 cups grilled chicken, cubed or shredded" })[0]?.entry?.id).toBe("chicken-breast");
+    expect(knowledge.resolve({ name: "whole chicken", original: "1 whole chicken" })[0]?.entry?.id).toBe("chicken");
+  });
+
   it("applies aisle and staple overrides", async () => {
     const knowledge = await Knowledge.load(fakeDb({ overrides: [["tofu", "Produce", null], ["soy-sauce", null, 0]] }));
     expect(knowledge.effective(knowledge.entry("tofu")!)).toEqual({ aisle: "Produce", staple: false });

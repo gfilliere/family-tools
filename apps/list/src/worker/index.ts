@@ -1,7 +1,7 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { Hono } from "hono";
 import { userEmail } from "@family-tools/ui";
-import { AISLES, isAisle, rebindLine, type Aisle, type ResolvedLine } from "@family-tools/pantry";
+import { AISLES, isAisle, parseIngredientLine, rebindLine, type Aisle, type ResolvedLine } from "@family-tools/pantry";
 import { describeUnknownIngredients } from "./ai";
 import { buildCards, cardsToText, type Card, type ItemRow, type Resolved } from "./cards";
 import { Knowledge, measureFromUnit, type Hints } from "./knowledge";
@@ -164,7 +164,7 @@ async function adoptLegacyRows(env: Env, knowledge: Knowledge, rows: ItemRow[]):
 function lookupWith(knowledge: Knowledge): (id: string | null) => Resolved | null {
   return (id) => {
     const entry = knowledge.entry(id);
-    if (!entry) return null;
+    if (!entry || entry.skip) return null;
     return { entry, ...knowledge.effective(entry) };
   };
 }
@@ -299,7 +299,10 @@ app.patch("/api/cards/:key", async (c) => {
     const rows = (await c.env.LIST.prepare(`SELECT ${ITEM_COLUMNS} FROM items WHERE id IN (${marks})`).bind(...ids).all<ItemRow>()).results;
     const updates: D1PreparedStatement[] = [];
     for (const row of rows) {
-      for (const text of [row.name, row.canonical_name]) if (text) await knowledge.learnAlias(text, target.id);
+      // Learn from what the recipe wrote, never from the catalog name we assigned: correcting
+      // "grilled chicken" must not redirect every future "chicken".
+      const spellings = new Set([row.name, row.original ? parseIngredientLine(row.original).name : null].filter((v): v is string => Boolean(v)));
+      for (const text of spellings) await knowledge.learnAlias(text, target.id);
       const [line] = knowledge.resolve({ name: row.name, original: row.original, qty: row.qty, unit: row.unit });
       const shopping = line?.entry?.id === target.id ? line.shopping : null;
       updates.push(c.env.LIST.prepare(

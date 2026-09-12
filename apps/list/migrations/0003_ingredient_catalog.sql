@@ -36,6 +36,6 @@ CREATE TABLE custom_ingredients (
 );
 
 CREATE INDEX items_open_ingredient ON items(checked_at, ingredient_id);
-DROP INDEX IF EXISTS items_open_identity;
-DROP TABLE IF EXISTS ingredient_aisles;
-DROP TABLE IF EXISTS ingredient_aliases;
+
+-- ingredient_aisles and ingredient_aliases are no longer read. They stay for now because the
+-- deploy applies migrations before the new Worker is live; drop them in a later migration.
