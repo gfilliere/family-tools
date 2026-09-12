@@ -137,6 +137,12 @@ export function buildCards(rows: ItemRow[], lookup: (id: string | null) => Resol
     || a.name.localeCompare(b.name));
 }
 
+function pluralName(name: string): string {
+  if (/(?:ch|sh|s|x|z|o)$/.test(name)) return `${name}es`;
+  if (/[^aeiou]y$/.test(name)) return `${name.slice(0, -1)}ies`;
+  return `${name}s`;
+}
+
 /** Plain-text export grouped the way the cards are, for pasting into a chat. */
 export function cardsToText(cards: Card[]): string {
   const open = cards.filter((card) => !card.checked);
@@ -148,7 +154,8 @@ export function cardsToText(cards: Card[]): string {
     ...members.map((card) => {
       const sources = [...new Set(card.parts.map((part) => part.sourceTitle).filter(Boolean))];
       const amount = card.total ?? card.parts.map((part) => part.amount).filter(Boolean).join(" + ");
-      return `- ${amount ? `${amount} ` : ""}${card.name}${sources.length ? ` (${sources.join(", ")})` : ""}`;
+      const plural = card.measure === "piece" && !card.pieceUnit && card.total && !/^1$/.test(card.total);
+      return `- ${amount ? `${amount} ` : ""}${plural ? pluralName(card.name) : card.name}${sources.length ? ` (${sources.join(", ")})` : ""}`;
     }),
   ].join("\n")).join("\n\n");
 }

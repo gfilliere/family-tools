@@ -74,7 +74,7 @@ export class Matcher {
       for (let start = 0; start + size <= tokens.length; start += 1) {
         const window = tokens.slice(start, start + size);
         const entry = this.lookup(window);
-        if (entry) found = { entry, size, alias: window.map(singular).join(" ") };
+        if (entry) found = { entry, size, alias: window.join(" ") };
       }
       if (found) return found;
     }

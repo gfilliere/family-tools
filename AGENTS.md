@@ -51,7 +51,8 @@ home.example.com/*      ─→  Worker "shell"  (Launcher UI)
 │       ├── migrations/  # D1 SQLite database migrations
 │       └── wrangler.jsonc
 ├── packages/
-│   └── ui/              # Shared design tokens (styles.css) and helpers (@family-tools/ui)
+│   ├── ui/              # Shared design tokens (styles.css) and helpers (@family-tools/ui)
+│   └── pantry/          # Ingredient catalog, line parser, matcher, unit conversion (@family-tools/pantry)
 ├── .github/workflows/   # Deployment pipeline (per-app change detection)
 ├── package.json         # Workspace root scripts
 ├── pnpm-workspace.yaml  # Monorepo configuration

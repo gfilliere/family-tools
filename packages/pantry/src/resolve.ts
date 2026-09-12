@@ -9,6 +9,8 @@ export interface ResolvedLine {
   entry: CatalogEntry | null;
   /** Cleaned name to show when there is no entry. */
   name: string;
+  /** The catalog alias that matched, as written in the line ("dried oregano", "sake"). Names lines inside a generic entry. */
+  alias: string;
   qty: number | null;
   unit: RecipeUnit | null;
   /** Amount in the entry's buying unit, when the conversion is safe. */
@@ -55,6 +57,7 @@ export function resolveLine(
     return {
       entry: item.entry,
       name: item.entry ? item.entry.name : item.phrase || name,
+      alias: item.alias,
       qty: lineQty,
       unit: lineUnit,
       shopping,

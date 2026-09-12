@@ -117,7 +117,7 @@ async function insertItems(
        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)`,
     ).bind(
       (hints.name ?? line.parsed.name ?? hints.original ?? entry.name).slice(0, MAX_NAME),
-      entry.generic ? line.parsed.name.toLocaleLowerCase().slice(0, MAX_NAME) || entry.name : entry.name,
+      entry.generic ? (line.alias || line.parsed.name.toLocaleLowerCase()).slice(0, MAX_NAME) || entry.name : entry.name,
       entry.id, entry.name, hints.original ?? null,
       line.qty, line.unit, shopping?.qty ?? null, shopping?.unit ?? null, aisle, flags,
       source?.kind ?? "manual", source?.id ?? null, source?.title?.trim().slice(0, 200) ?? null, addedBy,
