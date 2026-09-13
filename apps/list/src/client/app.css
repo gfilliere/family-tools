@@ -67,3 +67,11 @@ button.more { flex: 0 0 44px; padding: 0; background: var(--card); border-color:
 .alias-add button { padding: 8px 12px; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { font-size: 12px; text-transform: none; letter-spacing: 0; padding: 6px 10px; border-radius: 999px; }
+.total.adjusted { text-decoration: underline dotted; text-underline-offset: 3px; }
+.needed { color: var(--mute); font-size: 11px; }
+.buy { display: grid; grid-template-columns: auto 1fr auto auto; gap: 6px; align-items: center; }
+.buy-label { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--mute); }
+.buy input { min-width: 0; font: inherit; font-size: 15px; padding: 10px; border: 1px solid var(--hair); border-radius: 2px; background: white; color: var(--ink); }
+.buy select { font: inherit; font-size: 14px; padding: 9px; border: 1px solid var(--hair); border-radius: 2px; background: white; color: var(--ink); }
+.buy button[type="submit"] { padding: 9px 12px; background: var(--ink); color: white; border-color: var(--ink); }
+.buy .link { grid-column: 1 / -1; justify-self: start; font-size: 10px; padding: 4px 8px; }

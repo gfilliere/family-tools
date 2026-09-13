@@ -27,6 +27,8 @@ type Card = {
   pieceUnit: string | null;
   custom: boolean;
   total: string | null;
+  needed: string | null;
+  buy: { qty: number; unit: "g" | "ml" | "piece" } | null;
   partial: boolean;
   checked: boolean;
   optional: boolean;
@@ -306,8 +308,9 @@ function CardRow({ card, aisles, editing, onToggle, onEdit, onPatch, onRemove }:
         <span class="item-copy">
           <span class="item-main">
             <strong>{card.name}{card.optional && <em class="tag">optional</em>}</strong>
-            {card.total && <span class="total">{card.total}{card.partial ? "+" : ""}</span>}
+            {card.total && <span class={`total ${card.buy ? "adjusted" : ""}`}>{card.total}{card.partial ? "+" : ""}</span>}
           </span>
+          {card.buy && card.needed && card.needed !== card.total && <small class="needed">recipes need {card.needed}</small>}
           {showParts && (
             <small class="parts">
               {card.parts.map((part) => (
@@ -353,6 +356,7 @@ function CardEditor({ card, aisles, onPatch, onRemove }: CardEditorProps) {
 
   return (
     <div class="editor">
+      <BuyEditor card={card} onPatch={onPatch} />
       <label>
         <span>Aisle</span>
         <select value={card.aisle} onChange={(event) => void onPatch({ aisle: event.currentTarget.value })}>
@@ -388,6 +392,54 @@ function CardEditor({ card, aisles, onPatch, onRemove }: CardEditorProps) {
       </details>
       <button class="danger" onClick={() => void onRemove()}>Remove from list</button>
     </div>
+  );
+}
+
+const BUY_UNITS: { value: string; label: string; unit: "g" | "ml" | "piece"; factor: number }[] = [
+  { value: "g", label: "g", unit: "g", factor: 1 },
+  { value: "kg", label: "kg", unit: "g", factor: 1_000 },
+  { value: "ml", label: "ml", unit: "ml", factor: 1 },
+  { value: "l", label: "l", unit: "ml", factor: 1_000 },
+  { value: "piece", label: "pieces", unit: "piece", factor: 1 },
+];
+
+function defaultBuyUnit(card: Card): string {
+  const amount = card.buy;
+  if (amount) return amount.unit === "g" && amount.qty >= 1_000 ? "kg" : amount.unit === "ml" && amount.qty >= 1_000 ? "l" : amount.unit;
+  return card.measure;
+}
+
+function defaultBuyQty(card: Card, unitValue: string): string {
+  const amount = card.buy;
+  if (!amount) return "";
+  const unit = BUY_UNITS.find((item) => item.value === unitValue);
+  return unit ? String(Math.round((amount.qty / unit.factor) * 100) / 100) : String(amount.qty);
+}
+
+/** "Buy this much": overrides the computed total for one card. */
+function BuyEditor({ card, onPatch }: { card: Card; onPatch: (patch: Record<string, unknown>) => Promise<void> }) {
+  const [unitValue, setUnitValue] = useState(() => defaultBuyUnit(card));
+  const [qty, setQty] = useState(() => defaultBuyQty(card, defaultBuyUnit(card)));
+  const pieceLabel = card.pieceUnit ? `${card.pieceUnit}s` : "pieces";
+
+  function apply(event: Event) {
+    event.preventDefault();
+    const value = Number(qty.replace(",", "."));
+    const unit = BUY_UNITS.find((item) => item.value === unitValue);
+    if (!unit || !Number.isFinite(value) || value <= 0) return;
+    void onPatch({ buy: { qty: value * unit.factor, unit: unit.unit } });
+  }
+
+  return (
+    <form class="buy" onSubmit={apply}>
+      <span class="buy-label">Buy</span>
+      <input inputMode="decimal" value={qty} onInput={(event) => setQty(event.currentTarget.value)} placeholder={card.needed ?? "amount"} aria-label="Amount to buy" />
+      <select value={unitValue} onChange={(event) => setUnitValue(event.currentTarget.value)} aria-label="Unit">
+        {BUY_UNITS.map((item) => <option key={item.value} value={item.value}>{item.value === "piece" ? pieceLabel : item.label}</option>)}
+      </select>
+      <button type="submit">Set</button>
+      {card.buy && <button type="button" class="link" onClick={() => void onPatch({ buy: null })}>Use recipe total{card.needed ? ` (${card.needed})` : ""}</button>}
+    </form>
   );
 }
 

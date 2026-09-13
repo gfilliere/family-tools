@@ -67,6 +67,19 @@ describe("buildCards", () => {
     expect(cards.map((card) => [card.name, card.checked, card.total])).toEqual([["milk", false, "1 l"], ["egg", true, "2"]]);
   });
 
+  it("lets a manual amount replace the computed total and keeps the need visible", () => {
+    const rows = [
+      row({ ingredient_id: "chicken-breast", name: "chicken breast", qty: 650, unit: "g", base_qty: 650, base_unit: "g" }),
+      row({ ingredient_id: "chicken-breast", name: "chicken breast", qty: 700, unit: "g", base_qty: 700, base_unit: "g", source_title: "Noodle Bowls" }),
+      row({ ingredient_id: "milk", name: "milk", source_kind: "manual", source_title: null }),
+    ];
+    const cards = buildCards(rows, lookup, new Map([["chicken-breast", { qty: 750, unit: "g" }], ["milk", { qty: 2, unit: "piece" }]]));
+    expect(cards.find((card) => card.key === "chicken-breast")).toMatchObject({ total: "750 g", needed: "1.35 kg", buy: { qty: 750, unit: "g" } });
+    expect(cards.find((card) => card.key === "milk")).toMatchObject({ total: "2", needed: null });
+    expect(cardsToText(cards)).toContain("- 750 g chicken breast");
+    expect(cardsToText(cards)).toContain("- 2 milk");
+  });
+
   it("exports readable text", () => {
     const text = cardsToText(buildCards([
       row({ ingredient_id: "beef", name: "flank steak", qty: 680, unit: "g", base_qty: 680, base_unit: "g" }),

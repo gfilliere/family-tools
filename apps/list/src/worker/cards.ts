@@ -51,8 +51,12 @@ export interface Card {
   measure: Measure;
   pieceUnit: string | null;
   custom: boolean;
-  /** Formatted buying total, or null when nothing measurable was given. */
+  /** What to buy: the manual amount when one is set, otherwise the total computed from the parts. */
   total: string | null;
+  /** The computed total from the parts, kept visible when a manual amount replaces it. */
+  needed: string | null;
+  /** A manual "buy this much" amount, when set. */
+  buy: ShoppingAmount | null;
   /** True when at least one measured part is not in the total. */
   partial: boolean;
   checked: boolean;
@@ -78,7 +82,11 @@ export function cardKey(entry: CatalogEntry, displayName: string | null): string
   return entry.generic ? `${entry.id}#${(displayName ?? entry.name).toLocaleLowerCase()}` : entry.id;
 }
 
-export function buildCards(rows: ItemRow[], lookup: (id: string | null) => Resolved | null): Card[] {
+export function buildCards(
+  rows: ItemRow[],
+  lookup: (id: string | null) => Resolved | null,
+  buyOverrides: ReadonlyMap<string, ShoppingAmount> = new Map(),
+): Card[] {
   const groups = new Map<string, { resolved: Resolved; displayName: string; rows: ItemRow[] }>();
   for (const row of rows) {
     const resolved = lookup(row.ingredient_id);
@@ -113,6 +121,8 @@ export function buildCards(rows: ItemRow[], lookup: (id: string | null) => Resol
         optional: flags.optional === true,
       };
     });
+    const needed = sum ? formatShoppingAmount(roundShopping(sum), entry.pieceUnit) : null;
+    const buy = buyOverrides.get(key) ?? null;
     cards.push({
       key,
       ingredientId: entry.id,
@@ -123,8 +133,10 @@ export function buildCards(rows: ItemRow[], lookup: (id: string | null) => Resol
       measure: entry.measure,
       pieceUnit: entry.pieceUnit ?? null,
       custom: entry.id.startsWith("custom:"),
-      total: sum ? formatShoppingAmount(roundShopping(sum), entry.pieceUnit) : null,
-      partial,
+      total: buy ? formatShoppingAmount(buy, buy.unit === entry.measure ? entry.pieceUnit : undefined) : needed,
+      needed,
+      buy,
+      partial: buy ? false : partial,
       checked: parts.every((part) => part.checked),
       optional: parts.every((part) => part.optional),
       parts,

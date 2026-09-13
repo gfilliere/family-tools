@@ -1,9 +1,12 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { Hono } from "hono";
 import { userEmail } from "@family-tools/ui";
-import { AISLES, MEASURES, isAisle, parseIngredientLine, rebindLine, toAisle, type Aisle, type Measure, type ResolvedLine } from "@family-tools/pantry";
+import {
+  AISLES, MEASURES, isAisle, parseIngredientLine, rebindLine, toAisle,
+  type Aisle, type Measure, type ResolvedLine, type ShoppingAmount,
+} from "@family-tools/pantry";
 import { describeUnknownIngredients } from "./ai";
-import { buildCards, cardsToText, type Card, type ItemRow, type Resolved } from "./cards";
+import { buildCards, cardKey, cardsToText, type Card, type ItemRow, type Resolved } from "./cards";
 import { Knowledge, measureFromUnit, type Hints, type Override } from "./knowledge";
 
 export interface ShoppingItemInput {
@@ -169,11 +172,32 @@ function lookupWith(knowledge: Knowledge): (id: string | null) => Resolved | nul
   };
 }
 
+async function loadBuyOverrides(db: D1Database): Promise<Map<string, ShoppingAmount>> {
+  const { results } = await db.prepare("SELECT card_key, qty, unit FROM card_buy_overrides").all<{ card_key: string; qty: number; unit: Measure }>();
+  return new Map(results.map((row) => [row.card_key, { qty: row.qty, unit: row.unit }]));
+}
+
 async function loadCards(env: Env): Promise<{ cards: Card[]; knowledge: Knowledge }> {
   const knowledge = await Knowledge.load(env.LIST);
-  const rows = await openRows(env.LIST);
+  const [rows, buyOverrides] = await Promise.all([openRows(env.LIST), loadBuyOverrides(env.LIST)]);
   await adoptLegacyRows(env, knowledge, rows);
-  return { cards: buildCards(rows, lookupWith(knowledge)), knowledge };
+  return { cards: buildCards(rows, lookupWith(knowledge), buyOverrides), knowledge };
+}
+
+/** A manual amount belongs to the lines it was set for: drop it once no line with that card key is left. */
+async function pruneBuyOverrides(env: Env): Promise<void> {
+  const knowledge = await Knowledge.load(env.LIST);
+  const rows = await openRows(env.LIST);
+  const live = new Set<string>();
+  for (const row of rows) {
+    const entry = knowledge.entry(row.ingredient_id);
+    if (entry) live.add(cardKey(entry, entry.generic && row.display_name ? row.display_name : entry.name));
+  }
+  const { results } = await env.LIST.prepare("SELECT card_key FROM card_buy_overrides").all<{ card_key: string }>();
+  const stale = results.map((row) => row.card_key).filter((key) => !live.has(key));
+  if (stale.length) {
+    await env.LIST.batch(stale.map((key) => env.LIST.prepare("DELETE FROM card_buy_overrides WHERE card_key = ?1").bind(key)));
+  }
 }
 
 function recipesFrom(cards: Card[]): { id: number | null; title: string; open: number }[] {
@@ -252,6 +276,7 @@ app.delete("/api/items/:id", async (c) => {
   const id = Number(c.req.param("id"));
   if (!Number.isInteger(id) || id < 1) return badRequest(c, "Invalid item id.");
   const result = await c.env.LIST.prepare("DELETE FROM items WHERE id = ?1").bind(id).run();
+  if (result.meta.changes) await pruneBuyOverrides(c.env);
   return result.meta.changes ? c.json({ deleted: true }) : c.json({ error: "Item not found." }, 404);
 });
 
@@ -261,6 +286,18 @@ interface CardPatch {
   staple?: unknown;
   ingredientId?: unknown;
   name?: unknown;
+  /** { qty, unit } to buy this much instead of the computed total; null to go back to the computed total. */
+  buy?: unknown;
+}
+
+function parseBuy(value: unknown): ShoppingAmount | null | "invalid" {
+  if (value === null) return null;
+  if (typeof value !== "object" || value === null) return "invalid";
+  const { qty, unit } = value as { qty?: unknown; unit?: unknown };
+  const amount = Number(qty);
+  if (!Number.isFinite(amount) || amount <= 0) return "invalid";
+  if (!(MEASURES as readonly string[]).includes(unit as string)) return "invalid";
+  return { qty: amount, unit: unit as Measure };
 }
 
 app.patch("/api/cards/:key", async (c) => {
@@ -289,6 +326,18 @@ app.patch("/api/cards/:key", async (c) => {
   if (typeof payload.name === "string" && payload.name.trim()) {
     await knowledge.setOverride(card.ingredientId, { name: payload.name.trim().slice(0, 80) });
   }
+  if (payload.buy !== undefined) {
+    const buy = parseBuy(payload.buy);
+    if (buy === "invalid") return badRequest(c, "buy needs a positive qty and a unit of g, ml or piece.");
+    if (buy === null) {
+      await c.env.LIST.prepare("DELETE FROM card_buy_overrides WHERE card_key = ?1").bind(card.key).run();
+    } else {
+      await c.env.LIST.prepare(
+        `INSERT INTO card_buy_overrides(card_key, qty, unit) VALUES (?1, ?2, ?3)
+         ON CONFLICT(card_key) DO UPDATE SET qty = excluded.qty, unit = excluded.unit, updated_at = datetime('now')`,
+      ).bind(card.key, buy.qty, buy.unit).run();
+    }
+  }
   if (typeof payload.ingredientId === "string") {
     const target = knowledge.entry(payload.ingredientId);
     if (!target || target.skip) return badRequest(c, "Unknown ingredient.");
@@ -307,6 +356,7 @@ app.patch("/api/cards/:key", async (c) => {
       ).bind(target.id, target.name, shopping?.qty ?? null, shopping?.unit ?? null, knowledge.effective(target).aisle, row.id));
     }
     if (updates.length) await c.env.LIST.batch(updates);
+    await pruneBuyOverrides(c.env);
   }
   return c.json({ updated: true });
 });
@@ -318,6 +368,7 @@ app.delete("/api/cards/:key", async (c) => {
   if (!card) return c.json({ error: "Card not found." }, 404);
   const ids = card.parts.map((part) => part.id);
   await c.env.LIST.prepare(`DELETE FROM items WHERE id IN (${ids.map((_, index) => `?${index + 1}`).join(", ")})`).bind(...ids).run();
+  await pruneBuyOverrides(c.env);
   return c.json({ deleted: ids.length });
 });
 
@@ -328,11 +379,13 @@ app.delete("/api/recipes", async (c) => {
   const result = Number.isInteger(id) && id > 0
     ? await c.env.LIST.prepare("DELETE FROM items WHERE checked_at IS NULL AND source_kind = 'recipe' AND source_id = ?1").bind(id).run()
     : await c.env.LIST.prepare("DELETE FROM items WHERE checked_at IS NULL AND source_kind = 'recipe' AND source_title = ?1").bind(title).run();
+  await pruneBuyOverrides(c.env);
   return c.json({ deleted: result.meta.changes });
 });
 
 app.delete("/api/checked", async (c) => {
   const result = await c.env.LIST.prepare("DELETE FROM items WHERE checked_at IS NOT NULL").run();
+  await pruneBuyOverrides(c.env);
   return c.json({ deleted: result.meta.changes });
 });
 
