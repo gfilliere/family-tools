@@ -1,10 +1,10 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { Hono } from "hono";
 import { userEmail } from "@family-tools/ui";
-import { AISLES, isAisle, parseIngredientLine, rebindLine, type Aisle, type ResolvedLine } from "@family-tools/pantry";
+import { AISLES, MEASURES, isAisle, parseIngredientLine, rebindLine, toAisle, type Aisle, type Measure, type ResolvedLine } from "@family-tools/pantry";
 import { describeUnknownIngredients } from "./ai";
 import { buildCards, cardsToText, type Card, type ItemRow, type Resolved } from "./cards";
-import { Knowledge, measureFromUnit, type Hints } from "./knowledge";
+import { Knowledge, measureFromUnit, type Hints, type Override } from "./knowledge";
 
 export interface ShoppingItemInput {
   name: string;
@@ -43,7 +43,7 @@ function cleanInput(input: ShoppingItemInput): Hints {
     canonicalName: clip(input.canonicalName, MAX_NAME),
     qty: input.qty ?? null,
     unit: clip(input.unit, 24),
-    aisle: isAisle(input.aisle) ? input.aisle : null,
+    aisle: toAisle(input.aisle),
   };
 }
 
@@ -142,7 +142,7 @@ async function adoptLegacyRows(env: Env, knowledge: Knowledge, rows: ItemRow[]):
     row,
     hints: {
       name: row.name.split(" / ")[0] ?? row.name, canonicalName: row.canonical_name, qty: row.qty, unit: row.unit,
-      aisle: isAisle(row.aisle) ? row.aisle : null,
+      aisle: toAisle(row.aisle),
     } satisfies Hints,
   })).map((item) => ({ ...item, line: knowledge.resolve(item.hints)[0] }))
     .filter((item): item is typeof item & { line: ResolvedLine } => Boolean(item.line));
@@ -286,11 +286,8 @@ app.patch("/api/cards/:key", async (c) => {
     if (payload.staple !== null && typeof payload.staple !== "boolean") return badRequest(c, "staple must be a boolean.");
     await knowledge.setOverride(card.ingredientId, { staple: payload.staple as boolean | null });
   }
-  if (typeof payload.name === "string" && payload.name.trim() && card.custom) {
-    const name = payload.name.trim().slice(0, 80);
-    await knowledge.renameCustom(card.ingredientId, name);
-    const shifted = ids.map((_, index) => `?${index + 2}`).join(", ");
-    await c.env.LIST.prepare(`UPDATE items SET display_name = ?1, canonical_name = ?1 WHERE id IN (${shifted})`).bind(name, ...ids).run();
+  if (typeof payload.name === "string" && payload.name.trim()) {
+    await knowledge.setOverride(card.ingredientId, { name: payload.name.trim().slice(0, 80) });
   }
   if (typeof payload.ingredientId === "string") {
     const target = knowledge.entry(payload.ingredientId);
@@ -337,6 +334,88 @@ app.delete("/api/recipes", async (c) => {
 app.delete("/api/checked", async (c) => {
   const result = await c.env.LIST.prepare("DELETE FROM items WHERE checked_at IS NOT NULL").run();
   return c.json({ deleted: result.meta.changes });
+});
+
+/** Catalog page: search built-in and custom entries with their overrides and learned aliases. */
+app.get("/api/catalog", async (c) => {
+  const query = c.req.query("q")?.trim() ?? "";
+  const knowledge = await Knowledge.load(c.env.LIST);
+  const entries = knowledge.search(query, 30).map((entry) => knowledge.view(entry.id)).filter((view) => view !== null);
+  return c.json({ entries, aisles: AISLES });
+});
+
+app.get("/api/catalog/:id", async (c) => {
+  const knowledge = await Knowledge.load(c.env.LIST);
+  const view = knowledge.view(decodeURIComponent(c.req.param("id")));
+  return view ? c.json({ entry: view }) : c.json({ error: "Unknown ingredient." }, 404);
+});
+
+interface CatalogPatch {
+  name?: unknown;
+  aisle?: unknown;
+  staple?: unknown;
+  measure?: unknown;
+  density?: unknown;
+  pieceGrams?: unknown;
+  pieceUnit?: unknown;
+  addAlias?: unknown;
+  removeAlias?: unknown;
+  reset?: unknown;
+}
+
+function numberOrNull(value: unknown): number | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+/** Correct any attribute of an ingredient. Fields set to null go back to the built-in value. */
+app.patch("/api/catalog/:id", async (c) => {
+  const id = decodeURIComponent(c.req.param("id"));
+  const payload = await body<CatalogPatch>(c);
+  if (!payload) return badRequest(c, "Invalid JSON payload.");
+  const knowledge = await Knowledge.load(c.env.LIST);
+  if (!knowledge.entry(id)) return c.json({ error: "Unknown ingredient." }, 404);
+
+  if (payload.reset === true) await knowledge.clearOverride(id);
+  const patch: Override = {};
+  if (payload.name !== undefined) patch.name = typeof payload.name === "string" && payload.name.trim() ? payload.name.trim().slice(0, 80) : null;
+  if (payload.aisle !== undefined) {
+    if (payload.aisle !== null && !isAisle(payload.aisle)) return badRequest(c, "Unknown aisle.");
+    patch.aisle = payload.aisle as Aisle | null;
+  }
+  if (payload.staple !== undefined) {
+    if (payload.staple !== null && typeof payload.staple !== "boolean") return badRequest(c, "staple must be a boolean.");
+    patch.staple = payload.staple as boolean | null;
+  }
+  if (payload.measure !== undefined) {
+    if (payload.measure !== null && !(MEASURES as readonly string[]).includes(payload.measure as string)) return badRequest(c, "measure must be g, ml or piece.");
+    patch.measure = payload.measure as Measure | null;
+  }
+  for (const key of ["density", "pieceGrams"] as const) {
+    const value = numberOrNull(payload[key]);
+    if (payload[key] !== undefined && value === undefined) return badRequest(c, `${key} must be a positive number.`);
+    if (value !== undefined) patch[key] = value;
+  }
+  if (payload.pieceUnit !== undefined) patch.pieceUnit = typeof payload.pieceUnit === "string" && payload.pieceUnit.trim() ? payload.pieceUnit.trim().toLocaleLowerCase().slice(0, 20) : null;
+  if (Object.keys(patch).length) await knowledge.setOverride(id, patch);
+
+  if (typeof payload.addAlias === "string" && payload.addAlias.trim()) await knowledge.learnAlias(payload.addAlias, id);
+  if (typeof payload.removeAlias === "string" && payload.removeAlias.trim()) await knowledge.forgetAlias(payload.removeAlias);
+
+  // Lines already on the list follow the corrected identity and buying unit.
+  const rows = (await c.env.LIST.prepare(`SELECT ${ITEM_COLUMNS} FROM items WHERE ingredient_id = ?1`).bind(id).all<ItemRow>()).results;
+  const target = knowledge.entry(id);
+  if (rows.length && target) {
+    await c.env.LIST.batch(rows.map((row) => {
+      const [line] = knowledge.resolve({ name: row.name, original: row.original, qty: row.qty, unit: row.unit });
+      const shopping = line?.entry?.id === id ? line.shopping : null;
+      return c.env.LIST.prepare("UPDATE items SET base_qty = ?1, base_unit = ?2, aisle = ?3 WHERE id = ?4")
+        .bind(shopping?.qty ?? null, shopping?.unit ?? null, target.aisle, row.id);
+    }));
+  }
+  return c.json({ entry: knowledge.view(id) });
 });
 
 app.get("/api/ingredients", async (c) => {

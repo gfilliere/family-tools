@@ -57,3 +57,13 @@ button.more { flex: 0 0 44px; padding: 0; background: var(--card); border-color:
 .empty { text-align: center; padding: 38px 16px; color: var(--mute); }
 .empty span { display: block; font-size: 34px; color: var(--green); }
 .empty h2 { color: var(--ink); margin: 8px 0 4px; }
+.catalog { display: flex; flex-direction: column; gap: 12px; }
+.catalog-search { border: 2px solid var(--ink); border-radius: 2px; background: white; color: var(--ink); padding: 12px; font: inherit; font-size: 16px; }
+.catalog .card-row button.item { border-right: 1px solid var(--hair); border-radius: 2px; }
+.item-main .muted { color: var(--mute); font-weight: 600; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.editor .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.editor .grid input { min-width: 0; }
+.alias-add { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
+.alias-add button { padding: 8px 12px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 12px; text-transform: none; letter-spacing: 0; padding: 6px 10px; border-radius: 999px; }

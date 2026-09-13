@@ -6,7 +6,7 @@ function fakeDb(seed: { aliases?: [string, string][]; overrides?: [string, strin
   const writes: { sql: string; values: unknown[] }[] = [];
   const results = (sql: string) => {
     if (sql.includes("FROM learned_aliases")) return (seed.aliases ?? []).map(([alias_normalised, ingredient_id]) => ({ alias_normalised, ingredient_id }));
-    if (sql.includes("FROM ingredient_overrides")) return (seed.overrides ?? []).map(([ingredient_id, aisle, staple]) => ({ ingredient_id, aisle, staple }));
+    if (sql.includes("FROM ingredient_overrides")) return (seed.overrides ?? []).map(([ingredient_id, aisle, staple]) => ({ ingredient_id, aisle, staple, name: null, measure: null, density: null, piece_grams: null, piece_unit: null }));
     return [];
   };
   const statement = (sql: string, values: unknown[] = []) => ({
@@ -63,6 +63,17 @@ describe("Knowledge.resolve", () => {
     await knowledge.learnAlias("grilled chicken, cubed or shredded", "chicken-breast");
     expect(knowledge.resolve({ name: "grilled chicken, cubed or shredded", original: "1 1/2 cups grilled chicken, cubed or shredded" })[0]?.entry?.id).toBe("chicken-breast");
     expect(knowledge.resolve({ name: "whole chicken", original: "1 whole chicken" })[0]?.entry?.id).toBe("chicken");
+  });
+
+  it("applies attribute overrides to resolution and views", async () => {
+    const knowledge = await Knowledge.load(fakeDb());
+    await knowledge.setOverride("butter", { name: "Butter (Kerrygold)", measure: "piece", pieceGrams: 250 });
+    const [line] = knowledge.resolve({ name: "butter", original: "500 g butter" });
+    expect(line?.entry?.name).toBe("Butter (Kerrygold)");
+    expect(line?.shopping).toEqual({ qty: 2, unit: "piece" });
+    expect(knowledge.view("butter")).toMatchObject({ overridden: ["name", "measure", "pieceGrams"], aisle: "Dairy" });
+    await knowledge.clearOverride("butter");
+    expect(knowledge.view("butter")?.overridden).toEqual([]);
   });
 
   it("applies aisle and staple overrides", async () => {

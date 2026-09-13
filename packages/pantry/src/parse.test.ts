@@ -50,3 +50,19 @@ describe("parseIngredientLine", () => {
     expect(parseIngredientLine("Garlic head — 1/2 a whole garlic head")).toMatchObject({ qty: 0.5, unit: "head" });
   });
 });
+
+describe("French measures", () => {
+  it.each([
+    ["2 c. à s. d'huile d'olive", { qty: 2, unit: "tbsp", name: "huile d'olive" }],
+    ["1 cuillère à café de cumin", { qty: 1, unit: "tsp", name: "cumin" }],
+    ["3 gousses d'ail hachées", { qty: 3, unit: "clove", name: "ail" }],
+    ["200 g de farine", { qty: 200, unit: "g", name: "farine" }],
+    ["25 cl de crème liquide", { qty: 25, unit: "cl", name: "crème liquide" }],
+    ["1 botte de coriandre", { qty: 1, unit: "bunch", name: "coriandre" }],
+    ["une pincée de sel", { qty: null, unit: null, name: "sel" }],
+    ["2 oignons émincés", { qty: 2, unit: null, name: "oignons" }],
+    ["Poivre du moulin, au goût", { qty: null, unit: null, name: "Poivre du moulin" }],
+  ])("parses %s", (line, expected) => {
+    expect(parseIngredientLine(line)).toMatchObject(expected);
+  });
+});

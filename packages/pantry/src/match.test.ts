@@ -54,3 +54,17 @@ describe("matcher", () => {
     expect(id("dragon scales")).toEqual([null]);
   });
 });
+
+describe("matcher in French", () => {
+  it("resolves French names", () => {
+    expect(id("blancs de poulet")).toEqual(["chicken-breast"]);
+    expect(id("oignon rouge")).toEqual(["red-onion"]);
+    expect(id("crème fraîche épaisse")).toEqual(["creme-fraiche"]);
+    expect(id("gousses d'ail")).toEqual(["garlic"]);
+    expect(id("huile d'olive vierge extra")).toEqual(["olive-oil"]);
+    expect(id("Sel et poivre")).toEqual(["salt", "pepper"]);
+    expect(id("beurre ou huile")).toEqual(["butter"]);
+    expect(id("pommes de terre")).toEqual(["potato"]);
+    expect(id("lardons fumés")).toEqual(["bacon"]);
+  });
+});

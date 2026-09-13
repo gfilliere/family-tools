@@ -1,12 +1,21 @@
 /** Store sections, in the order you walk through a supermarket. */
 export const AISLES = [
-  "Produce", "Bakery", "Meat & Seafood", "Dairy & Eggs", "Pantry",
-  "Spices", "Frozen", "Beverages", "Household", "Other",
+  "Produce", "Bakery", "Meat", "Fish & Seafood", "Dairy", "Eggs", "Pantry",
+  "Baking", "Spices", "Frozen", "Beverages", "Household", "Other",
 ] as const;
 export type Aisle = (typeof AISLES)[number];
 
+/** Aisle names used before the split into Meat / Fish and Dairy / Eggs. */
+const LEGACY_AISLES: Record<string, Aisle> = { "Meat & Seafood": "Meat", "Dairy & Eggs": "Dairy" };
+
 export function isAisle(value: unknown): value is Aisle {
   return typeof value === "string" && (AISLES as readonly string[]).includes(value);
+}
+
+/** Accepts current and legacy aisle names; anything else is null. */
+export function toAisle(value: unknown): Aisle | null {
+  if (isAisle(value)) return value;
+  return typeof value === "string" ? LEGACY_AISLES[value] ?? null : null;
 }
 
 /** How an ingredient is bought: by weight, by volume, or by the piece. */
@@ -41,7 +50,7 @@ export interface CatalogEntry {
 }
 
 export type MassUnit = "g" | "kg" | "oz" | "lb";
-export type VolumeUnit = "ml" | "l" | "tsp" | "tbsp" | "cup" | "floz";
+export type VolumeUnit = "ml" | "cl" | "dl" | "l" | "tsp" | "tbsp" | "cup" | "floz";
 export type PieceUnit =
   | "piece" | "can" | "jar" | "packet" | "bunch" | "handful" | "pinch" | "dash" | "clove" | "slice"
   | "head" | "knob" | "stick" | "stalk" | "sprig" | "bottle" | "bag" | "block" | "cube" | "leaf"

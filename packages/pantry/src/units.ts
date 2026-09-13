@@ -1,7 +1,7 @@
 import type { Amount, CatalogEntry, MassUnit, Measure, PieceUnit, RecipeUnit, ShoppingAmount, VolumeUnit } from "./types";
 
 const MASS: Record<MassUnit, number> = { g: 1, kg: 1_000, oz: 28.3495, lb: 453.592 };
-const VOLUME: Record<VolumeUnit, number> = { ml: 1, l: 1_000, tsp: 4.929, tbsp: 14.787, cup: 236.588, floz: 29.574 };
+const VOLUME: Record<VolumeUnit, number> = { ml: 1, cl: 10, dl: 100, l: 1_000, tsp: 4.929, tbsp: 14.787, cup: 236.588, floz: 29.574 };
 
 /** Spelling → unit. Keys are lower-case with dots removed. */
 export const UNIT_WORDS: Record<string, RecipeUnit> = {
@@ -41,12 +41,26 @@ export const UNIT_WORDS: Record<string, RecipeUnit> = {
   pot: "pot", pots: "pot", becher: "pot",
   tube: "tube", tubes: "tube",
   piece: "piece", pieces: "piece", stück: "piece", stk: "piece", x: "piece",
+  // french
+  "cuillère à soupe": "tbsp", "cuillères à soupe": "tbsp", "cuillere à soupe": "tbsp", "cuilleres à soupe": "tbsp", "cuillère a soupe": "tbsp", "cuillères a soupe": "tbsp",
+  "c à soupe": "tbsp", "c à s": "tbsp", "c a s": "tbsp", "càs": "tbsp", cas: "tbsp", cs: "tbsp",
+  "cuil à soupe": "tbsp", "cuil à s": "tbsp", "cuillère à café": "tsp", "cuillères à café": "tsp", "cuillere à café": "tsp", "cuilleres à café": "tsp",
+  "cuillère a café": "tsp", "cuillères a café": "tsp", "c à café": "tsp", "c à c": "tsp", "c a c": "tsp", "càc": "tsp",
+  cac: "tsp", cc: "tsp", "cuil à café": "tsp", "cuil à c": "tsp", verre: "cup", verres: "cup", cl: "cl", dl: "dl",
+  gousse: "clove", gousses: "clove", botte: "bunch", bottes: "bunch", bouquet: "bunch", poignée: "handful",
+  poignées: "handful", pincée: "pinch", pincées: "pinch", "trait": "dash", "goutte": "dash",
+  "gouttes": "dash", boîte: "can", boîtes: "can", boite: "can", boites: "can", conserve: "can",
+  "boîte de conserve": "can", paquet: "packet", paquets: "packet", bocal: "jar", bocaux: "jar", tranche: "slice",
+  tranches: "slice", brin: "sprig", brins: "sprig", branche: "stalk", branches: "stalk", tige: "stalk",
+  tiges: "stalk", tête: "head", têtes: "head", feuille: "leaf", feuilles: "leaf", bouteille: "bottle",
+  bouteilles: "bottle", morceau: "piece", morceaux: "piece", bâton: "stick", bâtons: "stick", plaque: "sheet",
+  plaques: "sheet", boule: "ball", boules: "ball",
 };
 
 export function isMassUnit(unit: RecipeUnit): unit is MassUnit { return unit in MASS; }
 export function isVolumeUnit(unit: RecipeUnit): unit is VolumeUnit { return unit in VOLUME; }
 export function isPieceUnit(unit: RecipeUnit): unit is PieceUnit { return !isMassUnit(unit) && !isVolumeUnit(unit); }
-export function isMetric(unit: RecipeUnit): boolean { return unit === "g" || unit === "kg" || unit === "ml" || unit === "l"; }
+export function isMetric(unit: RecipeUnit): boolean { return unit === "g" || unit === "kg" || unit === "ml" || unit === "cl" || unit === "dl" || unit === "l"; }
 
 /** Units that mean "a little": no quantity worth shopping for. */
 export const TRACE_UNITS: ReadonlySet<RecipeUnit> = new Set<RecipeUnit>(["pinch", "dash"]);

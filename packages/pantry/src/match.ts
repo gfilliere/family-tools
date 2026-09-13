@@ -41,7 +41,7 @@ const MAX_WINDOW = 4;
 /** Alternatives: "butter or oil" → ["butter", "oil"]; "mayo / yogurt" → both. */
 export function splitAlternatives(phrase: string): string[] {
   return phrase
-    .split(/\s+(?:or|oder|ou)\s+|\s*\/\s*|\s+alternativ\s+/i)
+    .split(/\s+(?:or|oder|ou)\s+|\s*\/\s*|\s+alternativ\s+|\s+ou bien\s+/i)
     .map((part) => part.trim())
     .filter(Boolean);
 }
@@ -49,7 +49,7 @@ export function splitAlternatives(phrase: string): string[] {
 /** Conjunctions: "salt and pepper" → ["salt", "pepper"]; "Salz & Pfeffer"; "salt, pepper, paprika". */
 export function splitConjunctions(phrase: string): string[] {
   return phrase
-    .split(/\s*(?:,|;|\s\+\s|\s&\s|\sand\s|\sund\s|\s\+\s)\s*/i)
+    .split(/\s*(?:,|;|\s\+\s|\s&\s|\sand\s|\sund\s|\set\s)\s*/i)
     .map((part) => part.trim())
     .filter(Boolean);
 }
@@ -111,7 +111,7 @@ export class Matcher {
     const whole = this.matchPhrase(name);
     if (whole.entry && whole.exact) return [whole];
 
-    const isChoice = /(?:^|\s|,)(?:or|oder)\s/i.test(name) || /\s\/\s|\w\/\w/.test(name);
+    const isChoice = /(?:^|\s|,)(?:or|oder|ou)\s/i.test(name) || /\s\/\s|\w\/\w/.test(name);
     if (isChoice) {
       // "shrimp, chicken, or tofu" / "butter or oil": the first named option is what the recipe prefers.
       for (const option of splitAlternatives(name).flatMap((part) => splitConjunctions(part))) {

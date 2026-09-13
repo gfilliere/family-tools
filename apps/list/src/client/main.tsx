@@ -35,7 +35,22 @@ type Card = {
 
 type Recipe = { id: number | null; title: string; open: number };
 type Suggestion = { id: string; name: string; aisle: string; staple: boolean; measure: string };
-type View = "aisle" | "recipe";
+type CatalogEntry = {
+  id: string;
+  name: string;
+  aisle: string;
+  staple: boolean;
+  measure: "g" | "ml" | "piece";
+  density: number | null;
+  pieceGrams: number | null;
+  pieceUnit: string | null;
+  generic: boolean;
+  custom: boolean;
+  overridden: string[];
+  aliases: string[];
+  learnedAliases: string[];
+};
+type View = "aisle" | "recipe" | "catalog";
 
 const STAPLE_GROUP = "Check the pantry";
 const API = "/list/api";
@@ -195,12 +210,13 @@ function App() {
         <div class="segmented" aria-label="Group list by">
           <button class={view === "aisle" ? "active" : ""} onClick={() => setView("aisle")}>Aisle</button>
           <button class={view === "recipe" ? "active" : ""} onClick={() => setView("recipe")}>Recipe</button>
+          <button class={view === "catalog" ? "active" : ""} onClick={() => setView("catalog")}>Catalog</button>
         </div>
         <button onClick={() => void copyList()}>{copied ? "Copied" : "Copy text"}</button>
       </div>
 
-      {loading && <p class="notice">Loading your list…</p>}
-      {!loading && cards.length === 0 && <div class="empty"><span>✓</span><h2>All clear</h2><p>Add anything you need above.</p></div>}
+      {view !== "catalog" && loading && <p class="notice">Loading your list…</p>}
+      {view !== "catalog" && !loading && cards.length === 0 && <div class="empty"><span>✓</span><h2>All clear</h2><p>Add anything you need above.</p></div>}
 
       {view === "aisle" && (
         <div class="groups">
@@ -263,7 +279,9 @@ function App() {
         </div>
       )}
 
-      {anyChecked && <button class="clear" onClick={() => void clearChecked()}>Clear checked</button>}
+      {view === "catalog" && <CatalogPage aisles={aisles} onChanged={() => void load()} onError={setError} />}
+
+      {view !== "catalog" && anyChecked && <button class="clear" onClick={() => void clearChecked()}>Clear checked</button>}
     </main>
   );
 }
@@ -369,6 +387,126 @@ function CardEditor({ card, aisles, onPatch, onRemove }: CardEditorProps) {
         <ul>{card.parts.map((part) => <li key={part.id}>{part.original ?? `${part.amount} ${part.name}`.trim()}{part.sourceTitle ? ` — ${part.sourceTitle}` : ""}</li>)}</ul>
       </details>
       <button class="danger" onClick={() => void onRemove()}>Remove from list</button>
+    </div>
+  );
+}
+
+interface CatalogPageProps {
+  aisles: string[];
+  onChanged: () => void;
+  onError: (message: string | null) => void;
+}
+
+/** Search and correct any ingredient: name, aisle, staple, buying unit, densities, and spellings. */
+function CatalogPage({ aisles, onChanged, onError }: CatalogPageProps) {
+  const [query, setQuery] = useState("");
+  const [entries, setEntries] = useState<CatalogEntry[]>([]);
+  const [open, setOpen] = useState<string | null>(null);
+
+  useEffect(() => {
+    const needle = query.trim();
+    if (needle.length < 2) { setEntries([]); return; }
+    const controller = new AbortController();
+    const timer = globalThis.setTimeout(() => {
+      fetch(`${API}/catalog?q=${encodeURIComponent(needle)}`, { signal: controller.signal })
+        .then((response) => response.json() as Promise<{ entries: CatalogEntry[] }>)
+        .then((body) => setEntries(body.entries))
+        .catch(() => setEntries([]));
+    }, 180);
+    return () => { controller.abort(); globalThis.clearTimeout(timer); };
+  }, [query]);
+
+  async function patch(id: string, payload: Record<string, unknown>) {
+    onError(null);
+    try {
+      const body = await (await call(`/catalog/${encodeURIComponent(id)}`, json(payload))).json() as { entry: CatalogEntry };
+      setEntries((current) => current.map((entry) => (entry.id === id ? body.entry : entry)));
+      onChanged();
+    } catch (reason) {
+      onError(reason instanceof Error ? reason.message : "Could not update the ingredient.");
+    }
+  }
+
+  return (
+    <section class="catalog">
+      <p class="staples-hint">Fix how an ingredient is named, where it is shelved, whether it is a staple, and how it is bought. Changes apply to the list right away and are remembered.</p>
+      <input class="catalog-search" value={query} onInput={(event) => setQuery(event.currentTarget.value)} placeholder="Search an ingredient, alias, or German / French name" aria-label="Search the catalog" />
+      {query.trim().length >= 2 && entries.length === 0 && <p class="notice">Nothing matches. Add the item to the list and it will be created.</p>}
+      <div class="items">
+        {entries.map((entry) => (
+          <div class={`card-row ${open === entry.id ? "editing" : ""}`} key={entry.id}>
+            <button class="item" onClick={() => setOpen(open === entry.id ? null : entry.id)} aria-expanded={open === entry.id}>
+              <span class="item-copy">
+                <span class="item-main">
+                  <strong>{entry.name}{entry.overridden.length > 0 && <em class="tag">edited</em>}{entry.custom && <em class="tag">custom</em>}</strong>
+                  <span class="muted">{entry.staple ? "Check the pantry" : entry.aisle}</span>
+                </span>
+                <small>{entry.measure === "piece" ? `by the ${entry.pieceUnit ?? "piece"}` : `in ${entry.measure}`}{entry.aliases.length ? ` · ${entry.aliases.slice(0, 6).join(", ")}${entry.aliases.length > 6 ? "…" : ""}` : ""}</small>
+              </span>
+            </button>
+            {open === entry.id && <CatalogEditor entry={entry} aisles={aisles} onPatch={(payload) => patch(entry.id, payload)} />}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+interface CatalogEditorProps {
+  entry: CatalogEntry;
+  aisles: string[];
+  onPatch: (payload: Record<string, unknown>) => Promise<void>;
+}
+
+function CatalogEditor({ entry, aisles, onPatch }: CatalogEditorProps) {
+  const [name, setName] = useState(entry.name);
+  const [alias, setAlias] = useState("");
+  const [density, setDensity] = useState(entry.density?.toString() ?? "");
+  const [pieceGrams, setPieceGrams] = useState(entry.pieceGrams?.toString() ?? "");
+  const [pieceUnit, setPieceUnit] = useState(entry.pieceUnit ?? "");
+  const commit = (field: string, value: string, current: string) => { if (value !== current) void onPatch({ [field]: value.trim() || null }); };
+
+  return (
+    <div class="editor">
+      <label><span>Name</span><input value={name} onInput={(event) => setName(event.currentTarget.value)} onBlur={() => commit("name", name, entry.name)} /></label>
+      <label>
+        <span>Aisle</span>
+        <select value={entry.aisle} onChange={(event) => void onPatch({ aisle: event.currentTarget.value })}>
+          {aisles.map((aisle) => <option key={aisle}>{aisle}</option>)}
+        </select>
+      </label>
+      <label class="inline">
+        <input type="checkbox" checked={entry.staple} onChange={(event) => void onPatch({ staple: event.currentTarget.checked })} />
+        <span>Pantry staple (we usually have it)</span>
+      </label>
+      <label>
+        <span>Bought</span>
+        <select value={entry.measure} onChange={(event) => void onPatch({ measure: event.currentTarget.value })}>
+          <option value="g">by weight (g)</option>
+          <option value="ml">by volume (ml)</option>
+          <option value="piece">by the piece</option>
+        </select>
+      </label>
+      <div class="grid">
+        <label><span>Grams per ml</span><input inputMode="decimal" value={density} onInput={(event) => setDensity(event.currentTarget.value)} onBlur={() => commit("density", density, entry.density?.toString() ?? "")} placeholder="e.g. 0.9" /></label>
+        <label><span>Grams per piece</span><input inputMode="decimal" value={pieceGrams} onInput={(event) => setPieceGrams(event.currentTarget.value)} onBlur={() => commit("pieceGrams", pieceGrams, entry.pieceGrams?.toString() ?? "")} placeholder="e.g. 150" /></label>
+        <label><span>Piece is called</span><input value={pieceUnit} onInput={(event) => setPieceUnit(event.currentTarget.value)} onBlur={() => commit("pieceUnit", pieceUnit, entry.pieceUnit ?? "")} placeholder="can, bunch, clove" /></label>
+      </div>
+      <label>
+        <span>Also known as</span>
+        <form class="alias-add" onSubmit={(event) => { event.preventDefault(); if (alias.trim()) { void onPatch({ addAlias: alias.trim() }); setAlias(""); } }}>
+          <input value={alias} onInput={(event) => setAlias(event.currentTarget.value)} placeholder="Add a spelling that should map here" />
+          <button type="submit">Add</button>
+        </form>
+      </label>
+      {entry.learnedAliases.length > 0 && (
+        <div class="chips">
+          {entry.learnedAliases.map((item) => (
+            <button key={item} class="chip" onClick={() => void onPatch({ removeAlias: item })} title="Forget this spelling">{item} ×</button>
+          ))}
+        </div>
+      )}
+      {entry.overridden.length > 0 && <button class="danger" onClick={() => void onPatch({ reset: true })}>Reset to built-in values</button>}
     </div>
   );
 }

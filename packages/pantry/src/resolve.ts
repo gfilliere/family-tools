@@ -2,7 +2,7 @@ import { CATALOG_BY_ID } from "./catalog";
 import { Matcher, matcher as defaultMatcher } from "./match";
 import { parseIngredientLine } from "./parse";
 import { formatRecipeAmount, toShoppingAmount } from "./units";
-import type { CatalogEntry, LineFlags, ParsedLine, RecipeUnit, ShoppingAmount } from "./types";
+import type { Amount, CatalogEntry, LineFlags, ParsedLine, RecipeUnit, ShoppingAmount } from "./types";
 
 export interface ResolvedLine {
   /** Catalog entry, or null when the name is unknown. */
@@ -45,15 +45,7 @@ export function resolveLine(
     // Only the first ingredient carries the quantity: "1 tsp salt and pepper" is not a teaspoon of pepper.
     const lineQty = index === 0 ? qty : null;
     const lineUnit = index === 0 ? unit : null;
-    let shopping: ShoppingAmount | null = null;
-    if (item.entry && lineQty !== null) {
-      // A packaged line: "1 (400 g) can" is 400 g worth, "2 cans" of a canned entry is 2 pieces.
-      if (parsed.pack && lineUnit && !isPlainCount(lineUnit)) {
-        const each = toShoppingAmount(item.entry, parsed.pack);
-        shopping = each ? { qty: each.qty * lineQty, unit: each.unit } : null;
-      }
-      shopping ??= toShoppingAmount(item.entry, { qty: lineQty, unit: lineUnit ?? "piece" });
-    }
+    const shopping = item.entry ? shoppingFor(item.entry, lineQty, lineUnit, parsed.pack) : null;
     return {
       entry: item.entry,
       name: item.entry ? item.entry.name : item.phrase || name,
@@ -70,8 +62,17 @@ export function resolveLine(
 
 /** The same line, resolved to a different entry (a learned correction). Recomputes the buying amount. */
 export function rebindLine(line: ResolvedLine, entry: CatalogEntry): ResolvedLine {
-  const shopping = line.qty === null ? null : toShoppingAmount(entry, { qty: line.qty, unit: line.unit ?? "piece" });
-  return { ...line, entry, name: entry.name, shopping };
+  return { ...line, entry, name: entry.name, shopping: shoppingFor(entry, line.qty, line.unit, line.parsed.pack) };
+}
+
+/** Buying amount for a quantity, honouring "1 (400 g) can" package sizes. */
+function shoppingFor(entry: CatalogEntry, qty: number | null, unit: RecipeUnit | null, pack: Amount | null): ShoppingAmount | null {
+  if (qty === null) return null;
+  if (pack && unit && !isPlainCount(unit)) {
+    const each = toShoppingAmount(entry, pack);
+    if (each) return { qty: each.qty * qty, unit: each.unit };
+  }
+  return toShoppingAmount(entry, { qty, unit: unit ?? "piece" });
 }
 
 function isPlainCount(unit: RecipeUnit): boolean {

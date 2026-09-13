@@ -25,7 +25,7 @@ describe("buildCards", () => {
       row({ ingredient_id: "butter", name: "butter or oil", qty: 2, unit: "tbsp", base_qty: 27, base_unit: "g", source_title: "Noodle Bowls" }),
     ], lookup);
     expect(cards).toHaveLength(1);
-    expect(cards[0]).toMatchObject({ name: "butter", aisle: "Dairy & Eggs", total: "50 g", partial: false, checked: false });
+    expect(cards[0]).toMatchObject({ name: "butter", aisle: "Dairy", total: "50 g", partial: false, checked: false });
     expect(cards[0]?.parts.map((part) => part.amount)).toEqual(["25 g", "2 tbsp"]);
   });
 
@@ -45,7 +45,7 @@ describe("buildCards", () => {
       row({ ingredient_id: "broccoli", name: "broccoli florets", qty: 3, unit: "cup", base_qty: 0.64, base_unit: "piece" }),
     ], lookup);
     expect(cards.map((card) => [card.name, card.group])).toEqual([
-      ["broccoli", "Produce"], ["beef", "Meat & Seafood"], ["salt", "Check the pantry"],
+      ["broccoli", "Produce"], ["beef", "Meat"], ["salt", "Check the pantry"],
     ]);
     expect(cards[0]?.total).toBe("1");
   });
@@ -72,6 +72,6 @@ describe("buildCards", () => {
       row({ ingredient_id: "beef", name: "flank steak", qty: 680, unit: "g", base_qty: 680, base_unit: "g" }),
       row({ ingredient_id: "salt", name: "salt" }),
     ], lookup));
-    expect(text).toBe("MEAT & SEAFOOD\n- 680 g beef (Steak Bowls)\n\nCHECK THE PANTRY\n- salt (Steak Bowls)");
+    expect(text).toBe("MEAT\n- 680 g beef (Steak Bowls)\n\nCHECK THE PANTRY\n- salt (Steak Bowls)");
   });
 });
