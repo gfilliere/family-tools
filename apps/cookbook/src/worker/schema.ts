@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AISLES } from "@family-tools/pantry";
 import { sanitiseRecipeTitle } from "./text";
 
 export const ingredientInputSchema = z.object({
@@ -41,7 +42,7 @@ export const aiRecipeSchema = z.object({
   })).min(1).max(300),
   ingredientFacts: z.array(z.object({
     name: z.string().trim().min(1).max(160),
-    aisle: z.enum(["Produce", "Dairy & Eggs", "Meat & Seafood", "Bakery", "Pantry", "Spices", "Frozen", "Beverages", "Household", "Other"]),
+    aisle: z.enum(AISLES),
     gramsPerCup: z.number().positive().max(2_000).nullable(),
   })).max(300),
 });
@@ -76,7 +77,7 @@ export const aiRecipeJsonSchema = {
         additionalProperties: false,
         properties: {
           name: { type: "string" },
-          aisle: { type: "string", enum: ["Produce", "Dairy & Eggs", "Meat & Seafood", "Bakery", "Pantry", "Spices", "Frozen", "Beverages", "Household", "Other"] },
+          aisle: { type: "string", enum: AISLES },
           gramsPerCup: { type: ["number", "null"] },
         },
         required: ["name", "aisle", "gramsPerCup"],
@@ -90,7 +91,7 @@ export const ingredientIdentitySchema = z.object({
   ingredients: z.array(z.object({
     sourceName: z.string().trim().min(1).max(160),
     canonicalName: z.string().trim().min(1).max(160),
-    aisle: z.enum(["Produce", "Dairy & Eggs", "Meat & Seafood", "Bakery", "Pantry", "Spices", "Frozen", "Beverages", "Household", "Other"]),
+    aisle: z.enum(AISLES),
     gramsPerCup: z.number().positive().max(2_000).nullable(),
   })).min(1).max(300),
 });
@@ -108,7 +109,7 @@ export const ingredientIdentityJsonSchema = {
         properties: {
           sourceName: { type: "string" },
           canonicalName: { type: "string" },
-          aisle: { type: "string", enum: ["Produce", "Dairy & Eggs", "Meat & Seafood", "Bakery", "Pantry", "Spices", "Frozen", "Beverages", "Household", "Other"] },
+          aisle: { type: "string", enum: AISLES },
           gramsPerCup: { type: ["number", "null"] },
         },
         required: ["sourceName", "canonicalName", "aisle", "gramsPerCup"],

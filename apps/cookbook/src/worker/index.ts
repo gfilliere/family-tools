@@ -1,6 +1,8 @@
 import { Hono } from "hono";
 import { userEmail } from "@family-tools/ui";
+import { matcher } from "@family-tools/pantry";
 import { importRecipe, resolveIngredientIdentities } from "./importer";
+import { normaliseIngredientName } from "./normalise";
 import { recipeInputSchema, type RecipeInput } from "./schema";
 
 interface RecipeRow {
@@ -33,9 +35,9 @@ interface IngredientRow {
 
 interface ShoppingListBinding {
   addItems(
-    items: { name: string; canonicalName: string; qty: number | null; unit: string | null }[],
+    items: { name: string; canonicalName: string; original: string; aisle: string | null; qty: number | null; unit: string | null }[],
     source: { kind: "recipe"; id: number; title: string },
-  ): Promise<{ added: number }>;
+  ): Promise<{ added: number; skipped?: number }>;
 }
 
 function apiRecipe(row: RecipeRow) {
@@ -96,6 +98,21 @@ async function parseRecipeBody(request: Request, base?: RecipeInput): Promise<{ 
   const parsed = recipeInputSchema.safeParse(sanitiseBody(combined));
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid recipe." };
   return { data: parsed.data };
+}
+
+/** Aisles the import model assigned, keyed by normalised ingredient name. */
+async function knownAisles(db: D1Database, names: string[]): Promise<Map<string, string>> {
+  const keys = [...new Set(names.map(normaliseIngredientName))];
+  if (!keys.length) return new Map();
+  const results = await db.batch<{ aisle: string | null }>(keys.map((key) =>
+    db.prepare("SELECT aisle FROM ingredient_facts WHERE name_normalised = ?1").bind(key)));
+  const found = new Map<string, string>();
+  results.forEach((result, index) => {
+    const aisle = result.results[0]?.aisle;
+    const key = keys[index];
+    if (key && aisle) found.set(key, aisle);
+  });
+  return found;
 }
 
 async function foreignKeys(db: D1Database): Promise<void> {
@@ -247,10 +264,13 @@ app.post("/api/recipes/:id/to-list", async (c) => {
   // Wrangler currently generates a generic Service for named entrypoints in a
   // sibling config, so keep the RPC contract explicit and colocated with use.
   const listApp = c.env.LIST_APP as typeof c.env.LIST_APP & ShoppingListBinding;
+  const aisles = await knownAisles(c.env.COOKBOOK, recipe.ingredients.map((ingredient) => ingredient.name));
   const result = await listApp.addItems(
     recipe.ingredients.map((ingredient, index) => ({
       name: ingredient.name,
       canonicalName: canonicalNames[index] ?? ingredient.name,
+      original: ingredient.original,
+      aisle: aisles.get(normaliseIngredientName(ingredient.name)) ?? matcher.resolveName(ingredient.name)[0]?.entry?.aisle ?? null,
       qty: ingredient.qty,
       unit: ingredient.unit,
     })),

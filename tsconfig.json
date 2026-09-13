@@ -2,6 +2,7 @@
   "files": [],
   "references": [
     { "path": "./packages/ui" },
+    { "path": "./packages/pantry" },
     { "path": "./apps/shell" },
     { "path": "./apps/gas" },
     { "path": "./apps/admin" },

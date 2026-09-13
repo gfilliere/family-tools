@@ -5,6 +5,7 @@ import {
   ingredientIdentitySchema,
   type RecipeInput,
 } from "./schema";
+import { matcher } from "@family-tools/pantry";
 import { normaliseIngredientName, normaliseInstructions, parseAndNormaliseIngredient } from "./normalise";
 import { sanitiseRecipeTitle } from "./text";
 
@@ -196,6 +197,14 @@ export async function resolveIngredientIdentities(env: Env, inputs: IdentityInpu
     }
   }
   await saveIdentities(env.COOKBOOK, supplied);
+
+  // The shared catalog settles most names without a database or model call, in English and German.
+  for (const input of inputs) {
+    const alias = normaliseIngredientName(input.name);
+    if (resolved.has(alias)) continue;
+    const entry = matcher.resolveName(input.name)[0]?.entry;
+    if (entry && !entry.skip) resolved.set(alias, entry.generic ? cleanCanonicalName(input.name) : entry.name);
+  }
 
   const unresolvedInputs = inputs.filter((input) => !resolved.has(normaliseIngredientName(input.name)));
   const cached = await cachedCanonicalNames(env.COOKBOOK, unresolvedInputs.map((input) => input.name));

@@ -61,7 +61,7 @@ home.yourdomain.com/*      ──► Worker "shell" (Launcher Hub)
 2. **`gas`** (`/gas/`): Real-world example app monitoring E10 fuel prices via Tankerkönig API. Demonstrates Cloudflare D1 database storage, 7-day price history sparklines, background cron polling, and `ntfy.sh` push notifications when prices drop below a target threshold.
 3. **`admin`** (`/admin/`): Identity and access management app mapping verified Cloudflare Access emails to friendly display names and admin roles. Owns the `core` D1 database schema.
 4. **`cookbook`** (`/cookbook/`): Recipe catalog with JSON-LD/AI imports, metric normalisation, a Web Share Target, and a service binding to the shopping list.
-5. **`list`** (`/list/`): Installable one-handed shopping list grouped by aisle or recipe, with conservative quantity aggregation.
+5. **`list`** (`/list/`): Installable one-handed shopping list. One card per ingredient, aggregated at read time from the shared ingredient catalog (`packages/pantry`): buying totals in g, ml or pieces, a per-recipe breakdown, staples in a separate "check the pantry" group, and corrections (aisle, staple, identity) that are learned.
 
 ---
 

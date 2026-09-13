@@ -1,0 +1,17 @@
+{
+  "name": "@family-tools/pantry",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "description": "Ingredient knowledge shared by the cookbook and the shopping list: catalog, line parser, matcher, unit conversion.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.0"
+  }
+}
